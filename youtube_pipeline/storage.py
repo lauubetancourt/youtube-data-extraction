@@ -1,0 +1,146 @@
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+
+
+def _utc_now_stamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _normalize_timestamp_column(
+    df: pd.DataFrame, source_col: str, raw_col: str
+) -> pd.Series:
+    if source_col not in df.columns:
+        raise KeyError(f"Column '{source_col}' not found in dataframe.")
+    df[raw_col] = df[source_col].astype(str)
+    ts = pd.to_datetime(df[source_col], utc=True, errors="coerce")
+    if ts.isna().any():
+        bad_rows = int(ts.isna().sum())
+        raise ValueError(
+            f"{bad_rows} rows have invalid timestamps in column '{source_col}'."
+        )
+    return ts
+
+
+def normalize_video_timestamps(
+    videos_df: pd.DataFrame, source_col: str = "publishedAt"
+) -> pd.DataFrame:
+    """Return a copy with stable UTC time fields for simulation."""
+    out = videos_df.copy()
+    out["published_at_utc"] = _normalize_timestamp_column(
+        out, source_col=source_col, raw_col="published_at_raw"
+    )
+    out["published_at_unix_ms"] = (
+        out["published_at_utc"].astype("int64", copy=False) // 1_000_000
+    )
+    out["published_date"] = out["published_at_utc"].dt.strftime("%Y-%m-%d")
+    return out
+
+
+def normalize_comment_timestamps(
+    comments_df: pd.DataFrame, source_col: str = "published_at"
+) -> pd.DataFrame:
+    """Return a copy with stable UTC fields used by offline and Streamz phases."""
+    out = comments_df.copy()
+    out["event_time_utc"] = _normalize_timestamp_column(
+        out, source_col=source_col, raw_col="published_at_raw"
+    )
+    out["event_time_unix_ms"] = (
+        out["event_time_utc"].astype("int64", copy=False) // 1_000_000
+    )
+    out["event_date"] = out["event_time_utc"].dt.strftime("%Y-%m-%d")
+    out["event_year"] = out["event_time_utc"].dt.year.astype("int16")
+    out["event_month"] = out["event_time_utc"].dt.month.astype("int8")
+    out["event_day"] = out["event_time_utc"].dt.day.astype("int8")
+    return out
+
+
+def write_jsonl(df: pd.DataFrame, output_path: str | Path) -> Path:
+    """Write dataframe rows as JSON Lines preserving UTC timestamp strings."""
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    records = df.to_dict(orient="records")
+    with output.open("w", encoding="utf-8") as f:
+        for record in records:
+            for key, value in list(record.items()):
+                if isinstance(value, pd.Timestamp):
+                    record[key] = value.isoformat()
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return output
+
+
+def write_parquet_dataset(
+    df: pd.DataFrame,
+    dataset_dir: str | Path,
+    partition_cols: tuple[str, ...] = ("event_year", "event_month", "event_day"),
+    compression: str = "zstd",
+) -> Path:
+    """Write a partitioned parquet dataset for fast offline and stream reads."""
+    output = Path(dataset_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    try:
+        df.to_parquet(
+            output,
+            index=False,
+            partition_cols=list(partition_cols),
+            compression=compression,
+        )
+    except ImportError as exc:
+        raise ImportError(
+            "Parquet support requires pyarrow or fastparquet. "
+            "Install one of them, for example: pip install pyarrow"
+        ) from exc
+    return output
+
+
+def persist_batch_snapshot(
+    videos_df: pd.DataFrame,
+    comments_df: pd.DataFrame,
+    data_root: str | Path = "data",
+) -> dict[str, Any]:
+    """
+    Persist extraction outputs in a bronze/silver layout.
+
+    Layout:
+      - data/bronze/videos/videos_<stamp>.jsonl
+      - data/bronze/comments/comments_<stamp>.jsonl
+      - data/silver/videos/ (parquet)
+      - data/silver/comments/ (parquet)
+    """
+    root = Path(data_root)
+    stamp = _utc_now_stamp()
+
+    videos_norm = normalize_video_timestamps(videos_df)
+    comments_norm = normalize_comment_timestamps(comments_df)
+
+    videos_jsonl = write_jsonl(videos_norm, root / "bronze" / "videos" / f"videos_{stamp}.jsonl")
+    comments_jsonl = write_jsonl(
+        comments_norm, root / "bronze" / "comments" / f"comments_{stamp}.jsonl"
+    )
+
+    videos_parquet = write_parquet_dataset(
+        videos_norm.assign(
+            event_year=videos_norm["published_at_utc"].dt.year.astype("int16"),
+            event_month=videos_norm["published_at_utc"].dt.month.astype("int8"),
+            event_day=videos_norm["published_at_utc"].dt.day.astype("int8"),
+        ),
+        root / "silver" / "videos",
+    )
+    comments_parquet = write_parquet_dataset(
+        comments_norm, root / "silver" / "comments"
+    )
+
+    return {
+        "videos_rows": len(videos_norm),
+        "comments_rows": len(comments_norm),
+        "videos_jsonl": str(videos_jsonl),
+        "comments_jsonl": str(comments_jsonl),
+        "videos_parquet": str(videos_parquet),
+        "comments_parquet": str(comments_parquet),
+    }
