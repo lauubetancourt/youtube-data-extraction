@@ -36,13 +36,15 @@ class YouTubeAPIError(RuntimeError):
 
 @dataclass
 class ExtractionConfig:
-    query: str | None = "colombia elecciones 2026"
-    published_after: str | None = "2025-03-01T00:00:00Z"
-    published_before: str | None = "2026-03-09T23:59:59Z"
+    query: str | None = (
+    "elecciones 2026 colombia|presidenciales 2026 colombia|candidatos colombia 2026 -2022"
+)
+    published_after: str | None = "2026-01-31T00:00:00Z"
+    published_before: str | None = "2026-04-01T00:00:00Z"
     min_views: int | None = 10000
-    min_comments: int | None = 20
-    max_comments: int | None = 10000
-    max_results: int | None = 2000
+    min_comments: int | None = 100
+    max_comments: int | None = 5000
+    max_results: int | None = 500
     request_timeout_seconds: float = 30.0
     request_pause_seconds: float = 0.1
     retry_attempts: int = 3

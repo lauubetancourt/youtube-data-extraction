@@ -10,6 +10,7 @@ from .storage import (
     write_parquet_dataset,
 )
 from .stream_playback import (
+    XiaoEMATriggerDetector,
     build_event_time_window_stream,
     default_activity_metrics,
     default_polarization_metrics,
@@ -31,4 +32,5 @@ __all__ = [
     "replay_events",
     "write_jsonl",
     "write_parquet_dataset",
+    "XiaoEMATriggerDetector",
 ]

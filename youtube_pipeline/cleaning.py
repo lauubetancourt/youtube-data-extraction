@@ -174,6 +174,42 @@ def _remove_orphan_replies(
     return df.loc[~orphan_mask].copy()
 
 
+def _drop_temporal_text_duplicates(
+    df: pd.DataFrame,
+    *,
+    time_col: str = "event_time_utc",
+    author_col: str = "author_id",
+    text_col: str = "text_clean",
+    freq: str = "2min",
+) -> pd.DataFrame:
+    if time_col not in df.columns or author_col not in df.columns or text_col not in df.columns:
+        return df
+
+    out = df.copy()
+    out["_text_norm"] = out[text_col].fillna("").astype(str).str.lower().str.strip()
+
+    candidate_mask = (
+        out[time_col].notna()
+        & out[author_col].notna()
+        & out["_text_norm"].str.len().gt(0)
+    )
+    if not candidate_mask.any():
+        return out.drop(columns=["_text_norm"], errors="ignore")
+
+    candidates = out.loc[candidate_mask].sort_values(time_col, kind="stable")
+    duplicate_rank = candidates.groupby(
+        [pd.Grouper(key=time_col, freq=freq), author_col, "_text_norm"],
+        dropna=False,
+        sort=False,
+    ).cumcount()
+
+    keep_mask = pd.Series(True, index=out.index)
+    keep_mask.loc[candidates.index] = duplicate_rank.eq(0).to_numpy()
+
+    out = out.loc[keep_mask].copy()
+    return out.drop(columns=["_text_norm"], errors="ignore")
+
+
 def clean_comments_dataframe(
     df: pd.DataFrame,
     raw_text_col: str = "text",
@@ -209,6 +245,7 @@ def clean_comments_dataframe(
 
     out = out.loc[out["text_clean"].fillna("").str.len() > 0].copy()
     out = _remove_orphan_replies(out)
+    out = _drop_temporal_text_duplicates(out)
 
     if required_cols:
         missing = [col for col in required_cols if col not in out.columns]

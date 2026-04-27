@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from youtube_pipeline import (  # noqa: E402
     ExtractionConfig,
+    XiaoEMATriggerDetector,
     build_event_time_window_stream,
     clean_comments_dataframe,
     persist_batch_snapshot,
@@ -125,6 +126,8 @@ def run_playback(
     output_snapshots: str,
     ts_col: str,
     window_size: str,
+    trigger_threshold: float,
+    trigger_min_volume: int,
     speed: float,
     max_sleep_seconds: float | None,
     start: str | None,
@@ -140,6 +143,15 @@ def run_playback(
     events = read_dataset_for_playback(input_path, ts_col=ts_col)
     source = Stream()
     snapshots: list[dict[str, Any]] = []
+    detector = XiaoEMATriggerDetector(
+        ts_col=ts_col,
+        window_size="120s",
+        slide_interval="30s",
+        slow_window="10min",
+        sensitivity_threshold=trigger_threshold,
+        v_min=trigger_min_volume,
+        cooldown="3min",
+    )
 
     (
         build_event_time_window_stream(
@@ -158,6 +170,7 @@ def run_playback(
         max_sleep_seconds=max_sleep_seconds,
         start=start,
         end=end,
+        event_hooks=[detector.on_event],
     )
 
     snap_df = pd.json_normalize(snapshots, sep=".")
@@ -234,6 +247,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_play.add_argument("--ts-col", default="event_time_utc")
     p_play.add_argument("--window-size", default="20min")
+    p_play.add_argument("--trigger-threshold", type=float, default=1.5)
+    p_play.add_argument("--trigger-min-volume", type=int, default=46)
     p_play.add_argument("--speed", type=float, default=120.0)
     p_play.add_argument("--max-sleep-seconds", type=float, default=0.2)
     p_play.add_argument("--start", default=None)
@@ -266,6 +281,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_all.add_argument("--keep-spam", action="store_true")
     p_all.add_argument("--ts-col", default="event_time_utc")
     p_all.add_argument("--window-size", default="20min")
+    p_all.add_argument("--trigger-threshold", type=float, default=1.5)
+    p_all.add_argument("--trigger-min-volume", type=int, default=46)
     p_all.add_argument("--speed", type=float, default=120.0)
     p_all.add_argument("--max-sleep-seconds", type=float, default=0.2)
     p_all.add_argument("--start", default=None)
@@ -333,6 +350,8 @@ def main() -> None:
             output_snapshots=args.output_snapshots,
             ts_col=args.ts_col,
             window_size=args.window_size,
+            trigger_threshold=args.trigger_threshold,
+            trigger_min_volume=args.trigger_min_volume,
             speed=args.speed,
             max_sleep_seconds=args.max_sleep_seconds,
             start=args.start,
@@ -370,13 +389,15 @@ def main() -> None:
         if not args.skip_playback:
             snapshots_output = run_playback(
                 input_path=str(clean_output),
-                output_snapshots=args.snapshots_output,
-                ts_col=args.ts_col,
-                window_size=args.window_size,
-                speed=args.speed,
-                max_sleep_seconds=args.max_sleep_seconds,
-                start=args.start,
-                end=args.end,
+            output_snapshots=args.snapshots_output,
+            ts_col=args.ts_col,
+            window_size=args.window_size,
+            trigger_threshold=args.trigger_threshold,
+            trigger_min_volume=args.trigger_min_volume,
+            speed=args.speed,
+            max_sleep_seconds=args.max_sleep_seconds,
+            start=args.start,
+            end=args.end,
             )
             summary["snapshots_output"] = str(snapshots_output)
 
