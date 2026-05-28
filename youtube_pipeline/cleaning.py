@@ -210,6 +210,28 @@ def _drop_temporal_text_duplicates(
     return out.drop(columns=["_text_norm"], errors="ignore")
 
 
+def _unix_seconds_or_na(value: object) -> object:
+    if pd.isna(value):
+        return pd.NA
+    return int(pd.Timestamp(value).timestamp())
+
+
+def _ensure_event_time_unix_fields(df: pd.DataFrame) -> pd.DataFrame:
+    if "event_time_utc" not in df.columns:
+        return df
+
+    out = df.copy()
+    event_ts = pd.to_datetime(out["event_time_utc"], utc=True, errors="coerce")
+    if "event_time_unix_s" not in out.columns:
+        values = event_ts.map(_unix_seconds_or_na)
+        dtype = "Int64" if values.isna().any() else "int64"
+        out["event_time_unix_s"] = values.astype(dtype)
+    if "event_time_unix_ms" not in out.columns and "event_time_unix_s" in out.columns:
+        # Legacy alias retained for compatibility; values are Unix seconds.
+        out["event_time_unix_ms"] = out["event_time_unix_s"]
+    return out
+
+
 def clean_comments_dataframe(
     df: pd.DataFrame,
     raw_text_col: str = "text",
@@ -246,6 +268,7 @@ def clean_comments_dataframe(
     out = out.loc[out["text_clean"].fillna("").str.len() > 0].copy()
     out = _remove_orphan_replies(out)
     out = _drop_temporal_text_duplicates(out)
+    out = _ensure_event_time_unix_fields(out)
 
     if required_cols:
         missing = [col for col in required_cols if col not in out.columns]

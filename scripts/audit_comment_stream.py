@@ -16,6 +16,11 @@ from statistics import mean, median, pvariance
 SECONDS_PER_DAY = 86_400
 SECONDS_PER_MINUTE = 60
 SECONDS_PER_HOUR = 3_600
+CANONICAL_TS_FIELD = "event_time_unix_s"
+LEGACY_TS_FALLBACKS = {
+    "event_time_unix_s": "event_time_unix_ms",
+    "published_at_unix_s": "published_at_unix_ms",
+}
 
 
 @dataclass(frozen=True)
@@ -27,6 +32,8 @@ class CommentEvent:
 @dataclass(frozen=True)
 class DatasetSummary:
     source_path: Path
+    requested_timestamp_field: str
+    timestamp_field: str
     unit_name: str
     row_count: int
     event_count: int
@@ -138,8 +145,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--ts-field",
-        default="event_time_unix_ms",
-        help="Campo temporal a auditar.",
+        default=CANONICAL_TS_FIELD,
+        help=(
+            "Campo temporal a auditar. Por defecto usa event_time_unix_s y "
+            "acepta event_time_unix_ms como fallback legacy."
+        ),
     )
     parser.add_argument(
         "--text-field",
@@ -224,6 +234,13 @@ def normalize_spam_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def candidate_timestamp_fields(ts_field: str) -> tuple[str, ...]:
+    fallback = LEGACY_TS_FALLBACKS.get(ts_field)
+    if fallback is None:
+        return (ts_field,)
+    return (ts_field, fallback)
+
+
 def bucket_floor(timestamp_s: int, bin_size_s: int) -> int:
     return (timestamp_s // bin_size_s) * bin_size_s
 
@@ -249,6 +266,8 @@ def load_dataset(input_path: Path, ts_field: str, text_field: str) -> DatasetSum
     invalid_timestamp_count = 0
     raw_timestamps: list[int] = []
     staged_rows: list[tuple[int, str, str, bool]] = []
+    timestamp_field_counts: Counter[str] = Counter()
+    timestamp_fields = candidate_timestamp_fields(ts_field)
     videos: set[str] = set()
     replies = 0
 
@@ -256,7 +275,13 @@ def load_dataset(input_path: Path, ts_field: str, text_field: str) -> DatasetSum
         for line in handle:
             raw_rows += 1
             payload = json.loads(line)
-            raw_ts = safe_float(payload.get(ts_field))
+            raw_ts: float | None = None
+            used_ts_field: str | None = None
+            for candidate_ts_field in timestamp_fields:
+                raw_ts = safe_float(payload.get(candidate_ts_field))
+                if raw_ts is not None:
+                    used_ts_field = candidate_ts_field
+                    break
             raw_text = payload.get(text_field)
             if raw_text is None or not str(raw_text).strip():
                 missing_text_count += 1
@@ -270,6 +295,8 @@ def load_dataset(input_path: Path, ts_field: str, text_field: str) -> DatasetSum
                 invalid_timestamp_count += 1
                 continue
 
+            if used_ts_field is not None:
+                timestamp_field_counts[used_ts_field] += 1
             staged_rows.append(
                 (
                     int(raw_ts),
@@ -293,8 +320,15 @@ def load_dataset(input_path: Path, ts_field: str, text_field: str) -> DatasetSum
     if not events:
         raise ValueError("No hay eventos validos en el archivo auditado.")
 
+    resolved_timestamp_field = (
+        timestamp_field_counts.most_common(1)[0][0]
+        if timestamp_field_counts
+        else ts_field
+    )
     return DatasetSummary(
         source_path=input_path,
+        requested_timestamp_field=ts_field,
+        timestamp_field=resolved_timestamp_field,
         unit_name=unit_name,
         row_count=raw_rows,
         event_count=len(events),
@@ -768,11 +802,22 @@ def print_report(
         f"{dataset.missing_text_count} textos vacios | "
         f"{dataset.invalid_timestamp_count} timestamps invalidos"
     )
-    if dataset.unit_name != "ms":
+    print(
+        "Contrato temporal: "
+        f"campo solicitado={dataset.requested_timestamp_field} | "
+        f"campo usado={dataset.timestamp_field} | unidad inferida={dataset.unit_name}"
+    )
+    if dataset.timestamp_field.endswith("_unix_ms"):
         print(
             "Aviso temporal: "
-            f"el campo event_time_unix_ms parece venir en {dataset.unit_name}, "
-            "no en milisegundos."
+            f"{dataset.timestamp_field} es un nombre legacy; "
+            "el contrato vigente usa Unix epoch en segundos."
+        )
+    if dataset.unit_name != "s":
+        print(
+            "Aviso temporal: "
+            f"el campo {dataset.timestamp_field} parece venir en {dataset.unit_name}, "
+            "pero el contrato vigente espera segundos."
         )
 
     print()

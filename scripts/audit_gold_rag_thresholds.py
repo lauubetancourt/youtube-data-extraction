@@ -17,10 +17,15 @@ SLOW_STEPS = 20
 TRIGGER_FORCE = 1.5
 SIGNIFICANT_PEAK_MIN_VOLUME = 27
 COOLDOWN_MINUTES = 5
+CANONICAL_EVENT_TIME_UNIX_FIELD = "event_time_unix_s"
+LEGACY_EVENT_TIME_UNIX_FIELD = "event_time_unix_ms"
 
 
 @dataclass(frozen=True)
 class TimestampNormalizationResult:
+    column_name: str
+    is_legacy_column: bool
+    expected_unit: str
     inferred_unit: str
     duration_seconds: float
     start_error_seconds: float
@@ -84,9 +89,21 @@ def infer_epoch_unit(series: pd.Series) -> str:
     return "s"
 
 
+def resolve_event_time_unix_column(df: pd.DataFrame) -> tuple[str, bool]:
+    if CANONICAL_EVENT_TIME_UNIX_FIELD in df.columns:
+        return CANONICAL_EVENT_TIME_UNIX_FIELD, False
+    if LEGACY_EVENT_TIME_UNIX_FIELD in df.columns:
+        return LEGACY_EVENT_TIME_UNIX_FIELD, True
+    raise KeyError(
+        "Expected one of "
+        f"'{CANONICAL_EVENT_TIME_UNIX_FIELD}' or '{LEGACY_EVENT_TIME_UNIX_FIELD}'."
+    )
+
+
 def normalize_timestamp_check(df: pd.DataFrame) -> TimestampNormalizationResult:
+    unix_column, is_legacy_column = resolve_event_time_unix_column(df)
     event_ts = pd.to_datetime(df["event_time_utc"], utc=True, errors="coerce")
-    unix_series = pd.to_numeric(df["event_time_unix_ms"], errors="coerce")
+    unix_series = pd.to_numeric(df[unix_column], errors="coerce")
     unit = infer_epoch_unit(unix_series)
     factor_map = {"s": 1, "ms": 1_000, "us": 1_000_000, "ns": 1_000_000_000}
     factor = factor_map[unit]
@@ -97,11 +114,14 @@ def normalize_timestamp_check(df: pd.DataFrame) -> TimestampNormalizationResult:
     duration_seconds = (event_ts.max() - event_ts.min()).total_seconds()
 
     return TimestampNormalizationResult(
+        column_name=unix_column,
+        is_legacy_column=is_legacy_column,
+        expected_unit="s",
         inferred_unit=unit,
         duration_seconds=duration_seconds,
         start_error_seconds=float(start_error),
         end_error_seconds=float(end_error),
-        needs_conversion=(unit != "ms"),
+        needs_conversion=(unit != "s"),
     )
 
 
@@ -276,13 +296,26 @@ def print_report(
         f"- Comentarios huérfanos (ventanas de 2 minutos con volumen=1): "
         f"{orphan_comments:,} ({orphan_rate:.2%} del total)."
     )
+    legacy_note = " (legacy)" if timestamp_check.is_legacy_column else ""
     print(
-        f"- Normalización temporal: event_time_unix_ms se comporta como '{timestamp_check.inferred_unit}'. "
+        f"- Normalización temporal: {timestamp_check.column_name}{legacy_note} "
+        f"se comporta como '{timestamp_check.inferred_unit}'. "
+        f"Unidad esperada por contrato='{timestamp_check.expected_unit}'. "
         f"Duración observada={timestamp_check.duration_seconds:,.0f}s. "
         f"Error extremo al convertir con esa unidad: "
         f"inicio={timestamp_check.start_error_seconds:.3f}s, "
         f"fin={timestamp_check.end_error_seconds:.3f}s."
     )
+    if timestamp_check.is_legacy_column:
+        print(
+            "- Nota temporal: el nombre event_time_unix_ms queda deprecado; "
+            "los datasets nuevos deben preferir event_time_unix_s."
+        )
+    if timestamp_check.needs_conversion:
+        print(
+            "- Aviso temporal: la unidad inferida no coincide con segundos. "
+            "Revise el contrato antes de comparar experimentos."
+        )
     if not duplicates_head.empty:
         print("- Ejemplos de duplicados detectados:")
         examples = duplicates_head.head(5)[["window_2m", "author_id", "count", "text"]]

@@ -27,6 +27,10 @@ def _normalize_timestamp_column(
     return ts
 
 
+def _unix_seconds(ts: pd.Series) -> pd.Series:
+    return ts.map(lambda value: int(value.timestamp())).astype("int64")
+
+
 def normalize_video_timestamps(
     videos_df: pd.DataFrame, source_col: str = "publishedAt"
 ) -> pd.DataFrame:
@@ -35,9 +39,9 @@ def normalize_video_timestamps(
     out["published_at_utc"] = _normalize_timestamp_column(
         out, source_col=source_col, raw_col="published_at_raw"
     )
-    out["published_at_unix_ms"] = (
-        out["published_at_utc"].astype("int64", copy=False) // 1_000_000
-    )
+    out["published_at_unix_s"] = _unix_seconds(out["published_at_utc"])
+    # Legacy alias retained for compatibility; values are Unix seconds.
+    out["published_at_unix_ms"] = out["published_at_unix_s"]
     out["published_date"] = out["published_at_utc"].dt.strftime("%Y-%m-%d")
     return out
 
@@ -50,9 +54,9 @@ def normalize_comment_timestamps(
     out["event_time_utc"] = _normalize_timestamp_column(
         out, source_col=source_col, raw_col="published_at_raw"
     )
-    out["event_time_unix_ms"] = (
-        out["event_time_utc"].astype("int64", copy=False) // 1_000_000
-    )
+    out["event_time_unix_s"] = _unix_seconds(out["event_time_utc"])
+    # Legacy alias retained for compatibility; values are Unix seconds.
+    out["event_time_unix_ms"] = out["event_time_unix_s"]
     out["event_date"] = out["event_time_utc"].dt.strftime("%Y-%m-%d")
     out["event_year"] = out["event_time_utc"].dt.year.astype("int16")
     out["event_month"] = out["event_time_utc"].dt.month.astype("int8")

@@ -15,15 +15,24 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from youtube_pipeline import (  # noqa: E402
+    DEFAULT_DETECTOR,
     ExtractionConfig,
-    XiaoEMATriggerDetector,
     build_event_time_window_stream,
     clean_comments_dataframe,
+    create_detector,
+    get_detector_names,
     persist_batch_snapshot,
     read_dataset_for_playback,
     replay_events,
     run_extraction_pipeline,
 )
+
+DEFAULT_TRIGGER_THRESHOLD = 1.5
+DEFAULT_TRIGGER_MIN_VOLUME = 46
+DEFAULT_TRIGGER_WINDOW_SIZE = "120s"
+DEFAULT_TRIGGER_SLIDE_INTERVAL = "30s"
+DEFAULT_TRIGGER_SLOW_WINDOW = "10min"
+DEFAULT_TRIGGER_COOLDOWN = "3min"
 
 
 def _read_table(path: str | Path) -> pd.DataFrame:
@@ -58,6 +67,67 @@ def _read_json_config(config_file: str | None) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _read_detector_config(config_file: str | None) -> tuple[str | None, dict[str, Any]]:
+    payload = _read_json_config(config_file)
+    if not payload:
+        return None, {}
+
+    detector_payload = payload.get("detector", payload)
+    if isinstance(detector_payload, str):
+        return detector_payload, {}
+    if not isinstance(detector_payload, dict):
+        raise ValueError("Detector config must be an object or a detector name string.")
+
+    detector_name = (
+        detector_payload.get("name")
+        or detector_payload.get("detector")
+        or detector_payload.get("type")
+    )
+    raw_params = detector_payload.get("params", {})
+    if raw_params is None:
+        raw_params = {}
+    if not isinstance(raw_params, dict):
+        raise ValueError("Detector config field 'params' must be an object.")
+
+    inline_params = {
+        key: value
+        for key, value in detector_payload.items()
+        if key not in {"name", "detector", "type", "params"}
+    }
+    return detector_name, {**inline_params, **raw_params}
+
+
+def _resolve_detector_settings(args: argparse.Namespace) -> tuple[str, dict[str, Any]]:
+    config_name, config_params = _read_detector_config(
+        getattr(args, "detector_config_file", None)
+    )
+    detector_name = getattr(args, "detector", None) or config_name or DEFAULT_DETECTOR
+    params = dict(config_params)
+
+    if detector_name == DEFAULT_DETECTOR:
+        params.setdefault("window_size", DEFAULT_TRIGGER_WINDOW_SIZE)
+        params.setdefault("slide_interval", DEFAULT_TRIGGER_SLIDE_INTERVAL)
+        params.setdefault("slow_window", DEFAULT_TRIGGER_SLOW_WINDOW)
+        params.setdefault("sensitivity_threshold", DEFAULT_TRIGGER_THRESHOLD)
+        params.setdefault("v_min", DEFAULT_TRIGGER_MIN_VOLUME)
+        params.setdefault("cooldown", DEFAULT_TRIGGER_COOLDOWN)
+
+    cli_overrides = {
+        "trigger_window_size": "window_size",
+        "trigger_slide_interval": "slide_interval",
+        "trigger_slow_window": "slow_window",
+        "trigger_threshold": "sensitivity_threshold",
+        "trigger_min_volume": "v_min",
+        "trigger_cooldown": "cooldown",
+    }
+    for attr, param_name in cli_overrides.items():
+        value = getattr(args, attr, None)
+        if value is not None:
+            params[param_name] = value
+
+    return detector_name, params
 
 
 def run_extract(
@@ -124,14 +194,20 @@ def run_clean(
 def run_playback(
     input_path: str,
     output_snapshots: str,
-    ts_col: str,
-    window_size: str,
-    trigger_threshold: float,
-    trigger_min_volume: int,
-    speed: float,
-    max_sleep_seconds: float | None,
-    start: str | None,
-    end: str | None,
+    ts_col: str = "event_time_utc",
+    window_size: str = "20min",
+    trigger_threshold: float | None = None,
+    trigger_min_volume: int | None = None,
+    trigger_window_size: str | None = None,
+    trigger_slide_interval: str | None = None,
+    trigger_slow_window: str | None = None,
+    trigger_cooldown: str | None = None,
+    speed: float = 120.0,
+    max_sleep_seconds: float | None = 0.2,
+    start: str | None = None,
+    end: str | None = None,
+    detector_name: str = DEFAULT_DETECTOR,
+    detector_params: dict[str, Any] | None = None,
 ) -> Path:
     try:
         from streamz import Stream
@@ -143,15 +219,35 @@ def run_playback(
     events = read_dataset_for_playback(input_path, ts_col=ts_col)
     source = Stream()
     snapshots: list[dict[str, Any]] = []
-    detector = XiaoEMATriggerDetector(
-        ts_col=ts_col,
-        window_size="120s",
-        slide_interval="30s",
-        slow_window="10min",
-        sensitivity_threshold=trigger_threshold,
-        v_min=trigger_min_volume,
-        cooldown="3min",
-    )
+    resolved_detector_params = dict(detector_params or {})
+    resolved_detector_params.setdefault("ts_col", ts_col)
+    if detector_name == DEFAULT_DETECTOR:
+        resolved_detector_params.setdefault(
+            "window_size", trigger_window_size or DEFAULT_TRIGGER_WINDOW_SIZE
+        )
+        resolved_detector_params.setdefault(
+            "slide_interval",
+            trigger_slide_interval or DEFAULT_TRIGGER_SLIDE_INTERVAL,
+        )
+        resolved_detector_params.setdefault(
+            "slow_window", trigger_slow_window or DEFAULT_TRIGGER_SLOW_WINDOW
+        )
+        resolved_detector_params.setdefault(
+            "sensitivity_threshold",
+            trigger_threshold
+            if trigger_threshold is not None
+            else DEFAULT_TRIGGER_THRESHOLD,
+        )
+        resolved_detector_params.setdefault(
+            "v_min",
+            trigger_min_volume
+            if trigger_min_volume is not None
+            else DEFAULT_TRIGGER_MIN_VOLUME,
+        )
+        resolved_detector_params.setdefault(
+            "cooldown", trigger_cooldown or DEFAULT_TRIGGER_COOLDOWN
+        )
+    detector = create_detector(detector_name, **resolved_detector_params)
 
     (
         build_event_time_window_stream(
@@ -247,8 +343,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_play.add_argument("--ts-col", default="event_time_utc")
     p_play.add_argument("--window-size", default="20min")
-    p_play.add_argument("--trigger-threshold", type=float, default=1.5)
-    p_play.add_argument("--trigger-min-volume", type=int, default=46)
+    p_play.add_argument("--trigger-threshold", type=float, default=None)
+    p_play.add_argument("--trigger-min-volume", type=int, default=None)
+    p_play.add_argument("--trigger-window-size", default=None)
+    p_play.add_argument("--trigger-slide-interval", default=None)
+    p_play.add_argument("--trigger-slow-window", default=None)
+    p_play.add_argument("--trigger-cooldown", default=None)
+    p_play.add_argument("--detector", choices=get_detector_names(), default=None)
+    p_play.add_argument("--detector-config-file", default=None)
     p_play.add_argument("--speed", type=float, default=120.0)
     p_play.add_argument("--max-sleep-seconds", type=float, default=0.2)
     p_play.add_argument("--start", default=None)
@@ -281,8 +383,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_all.add_argument("--keep-spam", action="store_true")
     p_all.add_argument("--ts-col", default="event_time_utc")
     p_all.add_argument("--window-size", default="20min")
-    p_all.add_argument("--trigger-threshold", type=float, default=1.5)
-    p_all.add_argument("--trigger-min-volume", type=int, default=46)
+    p_all.add_argument("--trigger-threshold", type=float, default=None)
+    p_all.add_argument("--trigger-min-volume", type=int, default=None)
+    p_all.add_argument("--trigger-window-size", default=None)
+    p_all.add_argument("--trigger-slide-interval", default=None)
+    p_all.add_argument("--trigger-slow-window", default=None)
+    p_all.add_argument("--trigger-cooldown", default=None)
+    p_all.add_argument("--detector", choices=get_detector_names(), default=None)
+    p_all.add_argument("--detector-config-file", default=None)
     p_all.add_argument("--speed", type=float, default=120.0)
     p_all.add_argument("--max-sleep-seconds", type=float, default=0.2)
     p_all.add_argument("--start", default=None)
@@ -345,17 +453,18 @@ def main() -> None:
         return
 
     if args.command == "playback":
+        detector_name, detector_params = _resolve_detector_settings(args)
         output = run_playback(
             input_path=args.input_path,
             output_snapshots=args.output_snapshots,
             ts_col=args.ts_col,
             window_size=args.window_size,
-            trigger_threshold=args.trigger_threshold,
-            trigger_min_volume=args.trigger_min_volume,
             speed=args.speed,
             max_sleep_seconds=args.max_sleep_seconds,
             start=args.start,
             end=args.end,
+            detector_name=detector_name,
+            detector_params=detector_params,
         )
         print(str(output))
         return
@@ -387,17 +496,18 @@ def main() -> None:
             summary["extract"] = extract_result
 
         if not args.skip_playback:
+            detector_name, detector_params = _resolve_detector_settings(args)
             snapshots_output = run_playback(
                 input_path=str(clean_output),
-            output_snapshots=args.snapshots_output,
-            ts_col=args.ts_col,
-            window_size=args.window_size,
-            trigger_threshold=args.trigger_threshold,
-            trigger_min_volume=args.trigger_min_volume,
-            speed=args.speed,
-            max_sleep_seconds=args.max_sleep_seconds,
-            start=args.start,
-            end=args.end,
+                output_snapshots=args.snapshots_output,
+                ts_col=args.ts_col,
+                window_size=args.window_size,
+                speed=args.speed,
+                max_sleep_seconds=args.max_sleep_seconds,
+                start=args.start,
+                end=args.end,
+                detector_name=detector_name,
+                detector_params=detector_params,
             )
             summary["snapshots_output"] = str(snapshots_output)
 
