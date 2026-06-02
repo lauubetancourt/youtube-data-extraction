@@ -21,6 +21,12 @@ La base principal es la documentacion de IBM SPSS Modeler sobre CRISP-DM y prepa
 | `signal-monitoring-spec` | Modelado experimental | Monitoreo | Fichas de senales, lineas base, visualizaciones esperadas |
 | `event-detection-decision-criteria` | Modelado/evaluacion | Deteccion | Matriz de decision, niveles de alerta, plantilla de evento |
 | `rag-validation-readiness` | Evaluacion/despliegue futuro | Validacion posterior mediante RAG | Plantilla de validacion, preguntas de recuperacion, etiquetas |
+| `rag-strategy-selection` | Modelado/evaluacion | Refinamiento RAG | Matriz de seleccion de estrategias, recomendacion inicial, riesgos |
+| `rag-evidence-package-design` | Preparacion/evaluacion | Evidencia para RAG | Paquete evento-evidencia, mapa completo de comentarios, mapa de senales |
+| `rag-retrieval-design` | Modelado/evaluacion | Recuperacion interna y externa | Diseno de retrieval, consultas, candidatos, ranking y linaje |
+| `rag-context-management` | Preparacion/modelado | Contexto para RAG | Politica de chunking, seleccion, resumen y limites de contexto |
+| `rag-validation-contracts` | Preparacion/evaluacion/despliegue | Contratos RAG | Contratos de entrada/salida, compatibilidad, diccionario de campos |
+| `rag-evaluation-and-traceability` | Evaluacion/despliegue | Verificacion RAG | Criterios de aceptacion, reporte de trazabilidad, riesgos residuales |
 | `experiment-traceability-reporting` | Todas las fases | Transversal | Bitacora de experimentos, reporte CRISP-DM, registro de decisiones |
 
 ## Orden sugerido para auditar el pipeline
@@ -38,7 +44,13 @@ La base principal es la documentacion de IBM SPSS Modeler sobre CRISP-DM y prepa
 11. `signal-monitoring-spec`
 12. `event-detection-decision-criteria`
 13. `rag-validation-readiness`
-14. `experiment-traceability-reporting`
+14. `rag-strategy-selection`
+15. `rag-evidence-package-design`
+16. `rag-validation-contracts`
+17. `rag-retrieval-design`
+18. `rag-context-management`
+19. `rag-evaluation-and-traceability`
+20. `experiment-traceability-reporting`
 
 `experiment-traceability-reporting` debe usarse tambien al cierre de cada etapa para registrar decisiones, artefactos y pendientes.
 
@@ -58,7 +70,7 @@ La base principal es la documentacion de IBM SPSS Modeler sobre CRISP-DM y prepa
 - Simulacion de flujo en linea: `temporal-partitioning-validation-design`, `online-stream-simulation-design`.
 - Monitoreo: `feature-construction-aggregation`, `signal-monitoring-spec`.
 - Deteccion: `event-detection-decision-criteria`.
-- Validacion posterior mediante RAG: `rag-validation-readiness`.
+- Validacion posterior mediante RAG: `rag-validation-readiness`, `rag-strategy-selection`, `rag-evidence-package-design`, `rag-retrieval-design`, `rag-context-management`, `rag-validation-contracts`, `rag-evaluation-and-traceability`.
 - Documentacion y reproducibilidad: `experiment-traceability-reporting`.
 
 ## Limite de esta base
