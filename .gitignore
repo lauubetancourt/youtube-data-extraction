@@ -1,12 +1,42 @@
+# Secrets and local configuration
 .env
-temp/
+.env.*
+!.env.example
+
+# Local Python environments
+.venv/
 venv/
-Notebooks/.*
-data/.*
-data/*.csv
+
+# Python and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local datasets. Keep only the approved acquisition manifest versionable.
+/data/**
+!/data/bronze/
+!/data/bronze/runs/
+!/data/bronze/runs/extraction_run_20260409T154335Z.json
+
+# Experimental and generated runtime artifacts
+/experiments/
+/outputs/
+/logs/
+/cache/
+/temp/
+/tmp/
+
+# Local nested example repository
+/.agents/examples/structured-rag-pdf/
+
+# Operating system and notebook artifacts
 .DS_Store
 .ipynb_checkpoints/
+
+# Generated graph formats
 *.gephi
 *.graphml
-*.json
-*.csv
