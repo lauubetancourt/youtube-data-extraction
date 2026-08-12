@@ -45,6 +45,7 @@ class RunConfigLoadingTests(unittest.TestCase):
             "simulation": {
                 "ingestion": {
                     "input_path": "prepared/file.parquet",
+                    "output_dir": "outputs/cyclic",
                     "dry_run": True,
                 },
                 "orchestration": {
@@ -115,7 +116,13 @@ class RunConfigLoadingTests(unittest.TestCase):
             run_config_from_mapping(
                 {
                     "identity": {"run_id": "run_invalid_type"},
-                    "simulation": {"ingestion": {"dry_run": "false"}},
+                    "simulation": {
+                        "ingestion": {
+                            "input_path": "prepared/comments.parquet",
+                            "output_dir": "outputs/cyclic",
+                            "dry_run": "false",
+                        }
+                    },
                 }
             )
 

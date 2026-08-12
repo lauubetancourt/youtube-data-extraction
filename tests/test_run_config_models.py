@@ -83,7 +83,12 @@ class RunConfigModelTests(unittest.TestCase):
 
     def test_new_composition_models_are_immutable(self) -> None:
         identity = RunIdentityConfig(run_id="run_frozen")
-        simulation = SimulationConfig(ingestion=CyclicIngestionConfig())
+        simulation = SimulationConfig(
+            ingestion=CyclicIngestionConfig(
+                input_path="prepared/comments.parquet",
+                output_dir="outputs/cyclic",
+            )
+        )
         run = RunConfig(identity=identity, simulation=simulation)
 
         with self.assertRaises(FrozenInstanceError):

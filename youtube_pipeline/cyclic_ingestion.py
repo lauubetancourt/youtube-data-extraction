@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 from dataclasses import dataclass, field
@@ -76,8 +75,8 @@ def _json_default(value: Any) -> Any:
 
 @dataclass
 class CyclicIngestionConfig:
-    input_path: str | Path = "data/gold/clean_comments.parquet"
-    output_dir: str | Path = "experiments/xiao/media/log_3/cyclic_ingestion_simulation"
+    input_path: str | Path
+    output_dir: str | Path
     simulation_mode: str = DEFAULT_SIMULATION_MODE
     timezone: str = DEFAULT_TIMEZONE
     canonical_timezone: str = DEFAULT_CANONICAL_TIMEZONE
@@ -136,16 +135,14 @@ def load_cyclic_ingestion_config(
     *,
     overrides: dict[str, Any] | None = None,
 ) -> CyclicIngestionConfig:
-    payload: dict[str, Any] = {}
-    if config_file:
-        path = Path(config_file)
-        if not path.exists():
-            raise FileNotFoundError(f"Config file not found: {path}")
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    config_payload = payload.get("cyclic_ingestion_simulation", payload)
-    if overrides:
-        config_payload = {**config_payload, **overrides}
-    return CyclicIngestionConfig.from_mapping(config_payload)
+    """Compatibility shim; configuration I/O belongs to the entrypoint layer."""
+
+    from .entrypoints.cyclic_ingestion import load_legacy_cyclic_ingestion_config
+
+    return load_legacy_cyclic_ingestion_config(
+        config_file,
+        overrides=overrides,
+    )
 
 
 def _prepare_comments(
@@ -738,50 +735,12 @@ def build_cyclic_ingestion_dry_run(config: CyclicIngestionConfig) -> dict[str, A
     }
 
 
-def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Build C-0/C-1 dry-run contracts and temporal partitions for "
-            "cyclic_ingestion_simulation. This does not run monitoring, detection, "
-            "RAG, LLMs, Serper, embeddings, or vectorstores."
-        )
-    )
-    parser.add_argument("--config-file", default=None)
-    parser.add_argument("--input-path", default=None)
-    parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--timezone", default=None)
-    parser.add_argument("--canonical-timezone", default=None)
-    parser.add_argument("--analysis-window-size-days", type=int, default=None)
-    parser.add_argument("--collection-start-date-local", default=None)
-    parser.add_argument("--collection-end-date-local", default=None)
-    parser.add_argument("--simulation-run-id", default=None)
-    parser.add_argument("--rag-mode", default=None)
-    parser.add_argument("--notes", default=None)
-    return parser
-
-
 def main(argv: list[str] | None = None) -> None:
-    parser = _build_arg_parser()
-    args = parser.parse_args(argv)
-    overrides = {
-        key: value
-        for key, value in {
-            "input_path": args.input_path,
-            "output_dir": args.output_dir,
-            "timezone": args.timezone,
-            "canonical_timezone": args.canonical_timezone,
-            "analysis_window_size_days": args.analysis_window_size_days,
-            "collection_start_date_local": args.collection_start_date_local,
-            "collection_end_date_local": args.collection_end_date_local,
-            "simulation_run_id": args.simulation_run_id,
-            "rag_mode": args.rag_mode,
-            "notes": args.notes,
-        }.items()
-        if value is not None
-    }
-    config = load_cyclic_ingestion_config(args.config_file, overrides=overrides)
-    summary = build_cyclic_ingestion_dry_run(config)
-    print(json.dumps(summary, indent=2, ensure_ascii=False))
+    """Compatibility shim for ``python -m youtube_pipeline.cyclic_ingestion``."""
+
+    from .entrypoints.cyclic_ingestion import main as entrypoint_main
+
+    entrypoint_main(argv)
 
 
 __all__ = [

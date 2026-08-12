@@ -659,6 +659,18 @@ En “Acción” se indica `F` si puede cambiar comportamiento funcional y `C` s
 - A8: decisor combinado tras estabilizar ambos contratos.
 - A9: incrementalidad y checkpoint sobre el mismo harness antes de la corrida real.
 
+### Pendientes consolidados de STAB-PATHS-01 — corte Fase 2
+
+Este registro distingue pendientes reales de deuda transitoria prevista por la migración. Un hallazgo ya registrado actualiza su mismo ID; solo un hallazgo distinto crea una entrada nueva. Los estados usados son `OPEN`, `PLANNED`, `PARTIALLY_RESOLVED` y `RESOLVED`.
+
+| ID | Tipo | Hallazgo | Origen | Tratamiento previsto | Estado |
+|---|---|---|---|---|---|
+| `BL-01` | `BACKLOG` | `replay_events` presupone timestamps previamente normalizados y no valida strings directamente. | Fase 0 — baseline de compatibilidad. | Revisar al endurecer los contratos de entrada; no afecta el contrato actual. | `OPEN` |
+| `BL-02` | `BACKLOG` | Algunas configuraciones legacy reutilizadas siguen siendo mutables. | Fase 1C — resolución, serialización y hash de configuración. | Evaluar al migrar cada configuración; evitar una conversión masiva anticipada. | `OPEN` |
+| `TD-01` | `TRANSITIONAL_DEBT` | Los paths/defaults históricos siguen duplicados entre el perfil nuevo y módulos o configuraciones legacy. | Fase 1B; confirmado en Fases 1C y 2. | Retirar progresivamente al migrar componentes desde Fase 3; completar la limpieza de mecanismos legacy en Fase 8. | `PLANNED` |
+| `TD-02` | `TRANSITIONAL_DEBT` | El registro explícito de campos que representan paths cubre solo los componentes actualmente modelados. | Fase 1C — resolución común de paths. | Ampliar el registro únicamente conforme se migren nuevos componentes en las fases correspondientes. | `PLANNED` |
+| `TD-03` | `TRANSITIONAL_DEBT` | El perfil de compatibilidad existe, pero aún no es la autoridad operativa mientras los componentes consuman configuración legacy. | Fase 2 — perfil de compatibilidad del flujo cíclico. | Resolver durante la migración del vertical cíclico, comenzando en Fase 3A, hasta que sus componentes usen el resolver común. | `PLANNED` |
+
 ## 13. Qué NO tocar todavía
 
 - Fórmulas, thresholds o cooldowns de Xiao y baseline diario.

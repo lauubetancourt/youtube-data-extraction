@@ -85,7 +85,10 @@ class RunConfigPathTests(unittest.TestCase):
             source = RunConfig(
                 identity=RunIdentityConfig(run_id="run_absolute"),
                 simulation=SimulationConfig(
-                    ingestion=CyclicIngestionConfig(input_path=external)
+                    ingestion=CyclicIngestionConfig(
+                        input_path=external,
+                        output_dir=base / "outputs/cyclic",
+                    )
                 ),
             )
 
