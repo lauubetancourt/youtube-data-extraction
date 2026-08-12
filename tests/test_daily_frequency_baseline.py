@@ -228,9 +228,6 @@ class DailyFrequencyBaselineTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 DailyFrequencyBaselineConfig(**{flag: True}).validate()
 
-
-if __name__ == "__main__":
-    unittest.main()
     def test_defaults_disable_daily_cooldown(self) -> None:
         config = DailyFrequencyBaselineConfig()
 
@@ -242,3 +239,7 @@ if __name__ == "__main__":
 
         self.assertEqual(config.cooldown_cycles, 1)
         self.assertEqual(config.cooldown_policy, CONFIGURED_COOLDOWN_POLICY)
+
+
+if __name__ == "__main__":
+    unittest.main()
