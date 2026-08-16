@@ -12,8 +12,16 @@ from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConf
 from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionConfig
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
+from youtube_pipeline.data_extraction import ExtractionConfig
 
-from .models import DetectionConfig, RagConfig, RunConfig, SignalsConfig, SimulationConfig
+from .models import (
+    DataConfig,
+    DetectionConfig,
+    RagConfig,
+    RunConfig,
+    SignalsConfig,
+    SimulationConfig,
+)
 from .serialization import canonical_run_config_json, run_config_hash
 
 
@@ -29,6 +37,21 @@ def _resolve_optional_path(
     base_dir: Path,
 ) -> Path | None:
     return None if value is None else _resolve_path(value, base_dir)
+
+
+def _resolve_youtube_api(
+    config: ExtractionConfig,
+    base_dir: Path,
+) -> ExtractionConfig:
+    return replace(
+        config,
+        data_root=str(_resolve_path(config.data_root, base_dir)),
+        metadata_path=(
+            None
+            if config.metadata_path is None
+            else str(_resolve_path(config.metadata_path, base_dir))
+        ),
+    )
 
 
 def _resolve_ingestion(
@@ -161,6 +184,16 @@ def resolve_run_config_paths(
         raise TypeError("config must be RunConfig.")
     base = Path(base_dir).expanduser().resolve(strict=False)
 
+    data = config.data
+    if data is not None:
+        data = DataConfig(
+            youtube_api=(
+                _resolve_youtube_api(data.youtube_api, base)
+                if data.youtube_api is not None
+                else None
+            )
+        )
+
     simulation = config.simulation
     if simulation is not None:
         simulation = SimulationConfig(
@@ -231,6 +264,7 @@ def resolve_run_config_paths(
 
     return RunConfig(
         identity=config.identity,
+        data=data,
         simulation=simulation,
         signals=signals,
         detection=detection,

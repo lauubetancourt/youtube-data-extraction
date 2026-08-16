@@ -16,8 +16,10 @@ from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConf
 from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionConfig
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
+from youtube_pipeline.data_extraction import ExtractionConfig
 
 from .models import (
+    DataConfig,
     DetectionConfig,
     RagConfig,
     RunConfig,
@@ -26,7 +28,8 @@ from .models import (
     SimulationConfig,
 )
 
-_ROOT_FIELDS = {"identity", "simulation", "signals", "detection", "rag"}
+_ROOT_FIELDS = {"identity", "data", "simulation", "signals", "detection", "rag"}
+_DATA_FIELDS = {"youtube_api"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter"}
 _SIGNALS_FIELDS = {"daily"}
 _DETECTION_FIELDS = {"connector", "daily_frequency"}
@@ -125,6 +128,28 @@ def _build_identity(payload: Any) -> RunIdentityConfig:
     if "run_id" not in identity_payload:
         raise ValueError("identity.run_id is required.")
     return RunIdentityConfig(run_id=identity_payload["run_id"])
+
+
+def _build_data(payload: Any) -> DataConfig:
+    section = _require_object(payload, "data")
+    _reject_unknown_keys(section, _DATA_FIELDS, "data")
+    youtube_api = None
+    if "youtube_api" in section:
+        component_payload = _require_object(
+            section["youtube_api"],
+            "data.youtube_api",
+        )
+        _reject_unknown_keys(
+            component_payload,
+            {field.name for field in fields(ExtractionConfig)},
+            "data.youtube_api",
+        )
+        youtube_api = _build_component(
+            ExtractionConfig,
+            component_payload,
+            "data.youtube_api",
+        )
+    return DataConfig(youtube_api=youtube_api)
 
 
 def _build_simulation(payload: Any) -> SimulationConfig:
@@ -252,6 +277,7 @@ def run_config_from_mapping(
     identity = _build_identity(root["identity"])
     return RunConfig(
         identity=identity,
+        data=_build_data(root["data"]) if "data" in root else None,
         simulation=(
             _build_simulation(root["simulation"])
             if "simulation" in root

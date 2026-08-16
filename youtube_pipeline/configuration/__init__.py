@@ -2,6 +2,7 @@
 
 from .loading import load_run_config, run_config_from_mapping
 from .models import (
+    DataConfig,
     DetectionConfig,
     RagConfig,
     RunConfig,
@@ -18,6 +19,7 @@ from .serialization import (
 
 __all__ = [
     "canonical_run_config_json",
+    "DataConfig",
     "DetectionConfig",
     "load_run_config",
     "RagConfig",

@@ -12,6 +12,7 @@ from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConf
 from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionConfig
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
+from youtube_pipeline.data_extraction import ExtractionConfig
 
 
 def _require_optional_instance(
@@ -37,6 +38,18 @@ class RunIdentityConfig:
             raise TypeError("run_id must be a string.")
         if not self.run_id.strip():
             raise ValueError("run_id must not be empty.")
+
+
+@dataclass(frozen=True, slots=True)
+class DataConfig:
+    """Composition of implemented data-source configurations."""
+
+    youtube_api: ExtractionConfig | None = None
+
+    def __post_init__(self) -> None:
+        _require_optional_instance("youtube_api", self.youtube_api, ExtractionConfig)
+        if self.youtube_api is None:
+            raise ValueError("DataConfig must configure at least one data source.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +153,7 @@ class RunConfig:
     """Typed composition root for one execution without duplicating component fields."""
 
     identity: RunIdentityConfig
+    data: DataConfig | None = None
     simulation: SimulationConfig | None = None
     signals: SignalsConfig | None = None
     detection: DetectionConfig | None = None
@@ -148,12 +162,19 @@ class RunConfig:
     def __post_init__(self) -> None:
         if not isinstance(self.identity, RunIdentityConfig):
             raise TypeError("identity must be RunIdentityConfig.")
+        _require_optional_instance("data", self.data, DataConfig)
         _require_optional_instance("simulation", self.simulation, SimulationConfig)
         _require_optional_instance("signals", self.signals, SignalsConfig)
         _require_optional_instance("detection", self.detection, DetectionConfig)
         _require_optional_instance("rag", self.rag, RagConfig)
         if all(
             section is None
-            for section in (self.simulation, self.signals, self.detection, self.rag)
+            for section in (
+                self.data,
+                self.simulation,
+                self.signals,
+                self.detection,
+                self.rag,
+            )
         ):
             raise ValueError("RunConfig must configure at least one execution section.")
