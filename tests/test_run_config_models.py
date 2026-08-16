@@ -11,6 +11,7 @@ from youtube_pipeline.configuration import (
     SimulationConfig,
 )
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
+from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
 from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
@@ -50,6 +51,10 @@ class RunConfigModelTests(unittest.TestCase):
             simulation_dir="outputs/cyclic",
             min_count=7,
         )
+        connector = CyclicDetectionConnectorConfig(
+            simulation_dir="outputs/cyclic",
+            canonical_dataset_path="prepared/comments.parquet",
+        )
 
         run = RunConfig(
             identity=RunIdentityConfig(run_id="run_composed"),
@@ -59,18 +64,25 @@ class RunConfigModelTests(unittest.TestCase):
                 stateful_adapter=adapter,
             ),
             signals=SignalsConfig(daily=daily_signal),
-            detection=DetectionConfig(daily_frequency=baseline),
+            detection=DetectionConfig(
+                connector=connector,
+                daily_frequency=baseline,
+            ),
         )
 
         self.assertIs(run.simulation.ingestion, ingestion)
         self.assertIs(run.simulation.orchestration, orchestration)
         self.assertIs(run.simulation.stateful_adapter, adapter)
         self.assertIs(run.signals.daily, daily_signal)
+        self.assertIs(run.detection.connector, connector)
         self.assertIs(run.detection.daily_frequency, baseline)
         self.assertEqual(run.detection.daily_frequency.min_count, 7)
 
     def test_supports_a_run_with_only_one_applicable_section(self) -> None:
-        baseline = DailyFrequencyBaselineConfig(min_count=5)
+        baseline = DailyFrequencyBaselineConfig(
+            simulation_dir="outputs/cyclic",
+            min_count=5,
+        )
 
         run = RunConfig(
             identity=RunIdentityConfig(run_id="run_detection_only"),

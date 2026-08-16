@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Union, get_args, get_origin, get_type_hints
 
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
+from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
 from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
@@ -24,7 +25,7 @@ from .models import (
 _ROOT_FIELDS = {"identity", "simulation", "signals", "detection"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter"}
 _SIGNALS_FIELDS = {"daily"}
-_DETECTION_FIELDS = {"daily_frequency"}
+_DETECTION_FIELDS = {"connector", "daily_frequency"}
 
 
 def _require_object(value: Any, location: str) -> dict[str, Any]:
@@ -175,6 +176,15 @@ def _build_detection(payload: Any) -> DetectionConfig:
     section = _require_object(payload, "detection")
     _reject_unknown_keys(section, _DETECTION_FIELDS, "detection")
     return DetectionConfig(
+        connector=(
+            _build_component(
+                CyclicDetectionConnectorConfig,
+                section["connector"],
+                "detection.connector",
+            )
+            if "connector" in section
+            else None
+        ),
         daily_frequency=(
             _build_component(
                 DailyFrequencyBaselineConfig,

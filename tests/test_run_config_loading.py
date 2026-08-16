@@ -81,7 +81,12 @@ class RunConfigLoadingTests(unittest.TestCase):
         run = run_config_from_mapping(
             {
                 "identity": {"run_id": "run_detection"},
-                "detection": {"daily_frequency": {"min_count": 25}},
+                "detection": {
+                    "daily_frequency": {
+                        "simulation_dir": "outputs/cyclic",
+                        "min_count": 25,
+                    }
+                },
             }
         )
 

@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
+from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
 from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
@@ -75,6 +76,18 @@ def _resolve_daily_frequency(
     )
 
 
+def _resolve_detection_connector(
+    config: CyclicDetectionConnectorConfig,
+    base_dir: Path,
+) -> CyclicDetectionConnectorConfig:
+    return replace(
+        config,
+        simulation_dir=_resolve_path(config.simulation_dir, base_dir),
+        canonical_dataset_path=_resolve_path(config.canonical_dataset_path, base_dir),
+        output_dir=_resolve_optional_path(config.output_dir, base_dir),
+    )
+
+
 def resolve_run_config_paths(
     config: RunConfig,
     *,
@@ -119,6 +132,11 @@ def resolve_run_config_paths(
     detection = config.detection
     if detection is not None:
         detection = DetectionConfig(
+            connector=(
+                _resolve_detection_connector(detection.connector, base)
+                if detection.connector is not None
+                else None
+            ),
             daily_frequency=(
                 _resolve_daily_frequency(detection.daily_frequency, base)
                 if detection.daily_frequency is not None

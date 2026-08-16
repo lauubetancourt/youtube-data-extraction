@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
+from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
 from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
@@ -78,15 +79,21 @@ class SignalsConfig:
 class DetectionConfig:
     """Composition of implemented detector configurations."""
 
+    connector: CyclicDetectionConnectorConfig | None = None
     daily_frequency: DailyFrequencyBaselineConfig | None = None
 
     def __post_init__(self) -> None:
+        _require_optional_instance(
+            "connector",
+            self.connector,
+            CyclicDetectionConnectorConfig,
+        )
         _require_optional_instance(
             "daily_frequency",
             self.daily_frequency,
             DailyFrequencyBaselineConfig,
         )
-        if self.daily_frequency is None:
+        if self.connector is None and self.daily_frequency is None:
             raise ValueError("DetectionConfig must configure at least one detector.")
 
 

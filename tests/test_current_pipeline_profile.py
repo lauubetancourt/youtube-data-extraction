@@ -55,6 +55,15 @@ class CurrentCyclicCompatibilityProfileTests(unittest.TestCase):
         self.assertFalse(signals.run_rag)
 
         detector = run.detection.daily_frequency
+        connector = run.detection.connector
+        self.assertEqual(connector.mode, "detection_dry_run")
+        self.assertEqual(connector.max_cycles, 5)
+        self.assertEqual(
+            connector.canonical_dataset_path,
+            "data/gold/clean_comments.parquet",
+        )
+        self.assertFalse(connector.run_detection)
+        self.assertFalse(connector.run_rag)
         self.assertEqual(detector.signal_name, "new_comment_count")
         self.assertEqual(detector.baseline_window_size_cycles, 3)
         self.assertEqual(detector.k_multiplier, 2.0)
@@ -76,6 +85,7 @@ class CurrentCyclicCompatibilityProfileTests(unittest.TestCase):
         run.simulation.orchestration.validate_c2_scope()
         run.simulation.stateful_adapter.validate_c3_scope()
         signals.validate_c5_scope()
+        connector.validate_c4_scope()
         detector.validate()
 
     def test_profile_contains_only_the_first_migration_block(self) -> None:

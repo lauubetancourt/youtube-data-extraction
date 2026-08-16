@@ -13,6 +13,7 @@ from youtube_pipeline.configuration import (
     resolve_run_config_paths,
 )
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
+from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
 from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
@@ -36,6 +37,10 @@ class RunConfigPathTests(unittest.TestCase):
             simulation_dir="outputs/cyclic",
             output_dir="outputs/detection",
         )
+        connector = CyclicDetectionConnectorConfig(
+            simulation_dir="outputs/cyclic",
+            canonical_dataset_path="data/comments.parquet",
+        )
         source = RunConfig(
             identity=RunIdentityConfig(run_id="run_paths"),
             simulation=SimulationConfig(
@@ -44,7 +49,10 @@ class RunConfigPathTests(unittest.TestCase):
                 stateful_adapter=adapter,
             ),
             signals=SignalsConfig(daily=daily),
-            detection=DetectionConfig(daily_frequency=baseline),
+            detection=DetectionConfig(
+                connector=connector,
+                daily_frequency=baseline,
+            ),
         )
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -68,6 +76,10 @@ class RunConfigPathTests(unittest.TestCase):
                 base / "data/comments.parquet",
             )
             self.assertIsNone(resolved.signals.daily.output_dir)
+            self.assertEqual(
+                resolved.detection.connector.canonical_dataset_path,
+                base / "data/comments.parquet",
+            )
             self.assertEqual(
                 resolved.detection.daily_frequency.output_dir,
                 base / "outputs/detection",

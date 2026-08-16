@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
+from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
 from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
@@ -21,6 +22,9 @@ _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     CyclicOrchestratorConfig: frozenset({"simulation_dir"}),
     CyclicStatefulAdapterConfig: frozenset({"simulation_dir"}),
     CyclicDailySignalConfig: frozenset(
+        {"simulation_dir", "canonical_dataset_path", "output_dir"}
+    ),
+    CyclicDetectionConnectorConfig: frozenset(
         {"simulation_dir", "canonical_dataset_path", "output_dir"}
     ),
     DailyFrequencyBaselineConfig: frozenset({"simulation_dir", "output_dir"}),

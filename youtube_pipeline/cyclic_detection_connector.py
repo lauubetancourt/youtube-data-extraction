@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 from dataclasses import dataclass
@@ -15,7 +14,6 @@ from .monitoring import default_activity_metrics, default_polarization_metrics
 
 DETECTION_CONNECTOR_MODE = "detection_dry_run"
 DETECTION_SMOKE_TEST_MODE = "detection_smoke_test"
-DEFAULT_CANONICAL_DATASET_PATH = "data/gold/clean_comments.parquet"
 SMOKE_TEST_OUTPUT_SUBDIR = "detection_smoke_test"
 
 
@@ -107,10 +105,10 @@ def _format_timestamp(value: Any) -> str | None:
 
 @dataclass
 class CyclicDetectionConnectorConfig:
-    simulation_dir: str | Path = "experiments/xiao/media/log_3/cyclic_ingestion_simulation"
+    simulation_dir: str | Path
+    canonical_dataset_path: str | Path
     mode: str = DETECTION_CONNECTOR_MODE
     max_cycles: int = 5
-    canonical_dataset_path: str | Path = DEFAULT_CANONICAL_DATASET_PATH
     output_dir: str | Path | None = None
     debug_full_rows: bool = False
     run_monitoring: bool = False
@@ -173,13 +171,13 @@ def load_cyclic_detection_connector_config(
     *,
     overrides: dict[str, Any] | None = None,
 ) -> CyclicDetectionConnectorConfig:
-    payload: dict[str, Any] = {}
-    if config_file:
-        payload = _read_json(Path(config_file))
-    config_payload = payload.get("cyclic_detection_connector", payload)
-    if overrides:
-        config_payload = {**config_payload, **overrides}
-    return CyclicDetectionConnectorConfig.from_mapping(config_payload)
+    """Compatibility shim; configuration I/O belongs to the entrypoint layer."""
+
+    from .entrypoints.cyclic_detection_connector import (
+        load_legacy_detection_connector_config,
+    )
+
+    return load_legacy_detection_connector_config(config_file, overrides=overrides)
 
 
 def _validate_inputs(
@@ -1099,53 +1097,12 @@ def run_cyclic_detection_connector(config: CyclicDetectionConnectorConfig) -> di
     }
 
 
-def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Run C-4 cyclic detection connector modes. detection_dry_run prepares "
-            "contracts only; detection_smoke_test resolves active comments against "
-            "Gold in memory and executes the approved small monitoring/detection "
-            "smoke path. Neither mode executes RAG, LLMs, Serper, embeddings, or "
-            "vectorstores."
-        )
-    )
-    parser.add_argument("--config-file", default=None)
-    parser.add_argument("--simulation-dir", default=None)
-    parser.add_argument("--mode", default=None)
-    parser.add_argument("--max-cycles", type=int, default=None)
-    parser.add_argument("--canonical-dataset-path", default=None)
-    parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--debug-full-rows", action="store_true")
-    parser.add_argument("--run-monitoring", action="store_true")
-    parser.add_argument("--run-detection", action="store_true")
-    parser.add_argument("--run-rag", action="store_true")
-    return parser
-
-
 def main(argv: list[str] | None = None) -> None:
-    parser = _build_arg_parser()
-    args = parser.parse_args(argv)
-    overrides = {
-        key: value
-        for key, value in {
-            "simulation_dir": args.simulation_dir,
-            "mode": args.mode,
-            "max_cycles": args.max_cycles,
-            "canonical_dataset_path": args.canonical_dataset_path,
-            "output_dir": args.output_dir,
-            "debug_full_rows": args.debug_full_rows,
-            "run_monitoring": args.run_monitoring,
-            "run_detection": args.run_detection,
-            "run_rag": args.run_rag,
-        }.items()
-        if value is not None
-    }
-    try:
-        config = load_cyclic_detection_connector_config(args.config_file, overrides=overrides)
-        summary = run_cyclic_detection_connector(config)
-    except ValueError as exc:
-        parser.error(str(exc))
-    print(json.dumps(summary, indent=2, ensure_ascii=False))
+    """Compatibility shim for ``python -m youtube_pipeline.cyclic_detection_connector``."""
+
+    from .entrypoints.cyclic_detection_connector import main as entrypoint_main
+
+    entrypoint_main(argv)
 
 
 __all__ = [
