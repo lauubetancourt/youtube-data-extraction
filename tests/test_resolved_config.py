@@ -91,6 +91,17 @@ class ResolvedConfigTests(unittest.TestCase):
 
         self.assertNotEqual(first, second)
 
+    def test_absent_rag_section_preserves_pre_rag_config_identity(self) -> None:
+        config = _config("data/comments.parquet")
+
+        canonical = canonical_run_config_json(config)
+
+        self.assertNotIn('"rag"', canonical)
+        self.assertEqual(
+            run_config_hash(config),
+            "718c14a4a7a9f896a9208345afe4a1692f4b189dcaf8d2d6fd1313135568f0b8",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

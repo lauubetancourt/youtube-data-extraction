@@ -157,6 +157,7 @@ def _with_output_root(
         simulation=relocated_simulation,
         signals=relocated_signals,
         detection=relocated_detection,
+        rag=config.rag,
     )
 
 

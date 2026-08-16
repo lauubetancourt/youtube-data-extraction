@@ -3,6 +3,7 @@
 from .loading import load_run_config, run_config_from_mapping
 from .models import (
     DetectionConfig,
+    RagConfig,
     RunConfig,
     RunIdentityConfig,
     SignalsConfig,
@@ -19,6 +20,7 @@ __all__ = [
     "canonical_run_config_json",
     "DetectionConfig",
     "load_run_config",
+    "RagConfig",
     "ResolvedRunConfig",
     "resolve_run_config",
     "resolve_run_config_paths",

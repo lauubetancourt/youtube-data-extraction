@@ -13,19 +13,22 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
 from .models import (
     DetectionConfig,
+    RagConfig,
     RunConfig,
     RunIdentityConfig,
     SignalsConfig,
     SimulationConfig,
 )
 
-_ROOT_FIELDS = {"identity", "simulation", "signals", "detection"}
+_ROOT_FIELDS = {"identity", "simulation", "signals", "detection", "rag"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter"}
 _SIGNALS_FIELDS = {"daily"}
 _DETECTION_FIELDS = {"connector", "daily_frequency"}
+_RAG_FIELDS = {"daily_sidecars"}
 
 
 def _require_object(value: Any, location: str) -> dict[str, Any]:
@@ -197,6 +200,28 @@ def _build_detection(payload: Any) -> DetectionConfig:
     )
 
 
+def _build_rag(payload: Any, *, run_id: str) -> RagConfig:
+    section = _require_object(payload, "rag")
+    _reject_unknown_keys(section, _RAG_FIELDS, "rag")
+    if "daily_sidecars" not in section:
+        return RagConfig()
+    component_payload = _require_object(
+        section["daily_sidecars"],
+        "rag.daily_sidecars",
+    )
+    if "run_id" in component_payload:
+        raise ValueError(
+            "rag.daily_sidecars.run_id is not configurable; use identity.run_id."
+        )
+    return RagConfig(
+        daily_sidecars=_build_component(
+            DailyRagSidecarBuildConfig,
+            {**component_payload, "run_id": run_id},
+            "rag.daily_sidecars",
+        )
+    )
+
+
 def run_config_from_mapping(
     payload: Mapping[str, Any],
     *,
@@ -212,8 +237,9 @@ def run_config_from_mapping(
     if "identity" not in root:
         raise ValueError("identity is required.")
 
+    identity = _build_identity(root["identity"])
     return RunConfig(
-        identity=_build_identity(root["identity"]),
+        identity=identity,
         simulation=(
             _build_simulation(root["simulation"])
             if "simulation" in root
@@ -223,6 +249,11 @@ def run_config_from_mapping(
         detection=(
             _build_detection(root["detection"])
             if "detection" in root
+            else None
+        ),
+        rag=(
+            _build_rag(root["rag"], run_id=identity.run_id)
+            if "rag" in root
             else None
         ),
     )

@@ -9,6 +9,7 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
 
 def _require_optional_instance(
@@ -98,6 +99,22 @@ class DetectionConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class RagConfig:
+    """Composition of implemented RAG-stage configurations."""
+
+    daily_sidecars: DailyRagSidecarBuildConfig | None = None
+
+    def __post_init__(self) -> None:
+        _require_optional_instance(
+            "daily_sidecars",
+            self.daily_sidecars,
+            DailyRagSidecarBuildConfig,
+        )
+        if self.daily_sidecars is None:
+            raise ValueError("RagConfig must configure at least one RAG stage.")
+
+
+@dataclass(frozen=True, slots=True)
 class RunConfig:
     """Typed composition root for one execution without duplicating component fields."""
 
@@ -105,6 +122,7 @@ class RunConfig:
     simulation: SimulationConfig | None = None
     signals: SignalsConfig | None = None
     detection: DetectionConfig | None = None
+    rag: RagConfig | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.identity, RunIdentityConfig):
@@ -112,8 +130,17 @@ class RunConfig:
         _require_optional_instance("simulation", self.simulation, SimulationConfig)
         _require_optional_instance("signals", self.signals, SignalsConfig)
         _require_optional_instance("detection", self.detection, DetectionConfig)
+        _require_optional_instance("rag", self.rag, RagConfig)
         if all(
             section is None
-            for section in (self.simulation, self.signals, self.detection)
+            for section in (self.simulation, self.signals, self.detection, self.rag)
         ):
             raise ValueError("RunConfig must configure at least one execution section.")
+        if (
+            self.rag is not None
+            and self.rag.daily_sidecars is not None
+            and self.rag.daily_sidecars.run_id != self.identity.run_id
+        ):
+            raise ValueError(
+                "rag.daily_sidecars.run_id must be supplied by identity.run_id."
+            )

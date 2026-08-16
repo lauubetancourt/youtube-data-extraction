@@ -9,8 +9,9 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
-from .models import DetectionConfig, RunConfig, SignalsConfig, SimulationConfig
+from .models import DetectionConfig, RagConfig, RunConfig, SignalsConfig, SimulationConfig
 from .serialization import canonical_run_config_json, run_config_hash
 
 
@@ -88,6 +89,35 @@ def _resolve_detection_connector(
     )
 
 
+def _resolve_daily_rag_sidecars(
+    config: DailyRagSidecarBuildConfig,
+    base_dir: Path,
+) -> DailyRagSidecarBuildConfig:
+    return replace(
+        config,
+        daily_events_path=_resolve_path(config.daily_events_path, base_dir),
+        output_dir=_resolve_path(config.output_dir, base_dir),
+        comments_path=_resolve_path(config.comments_path, base_dir),
+        cycle_window_inventory_path=_resolve_path(
+            config.cycle_window_inventory_path,
+            base_dir,
+        ),
+        daily_scores_path=_resolve_optional_path(config.daily_scores_path, base_dir),
+        daily_detector_manifest_path=_resolve_optional_path(
+            config.daily_detector_manifest_path,
+            base_dir,
+        ),
+        cycle_signal_series_path=_resolve_optional_path(
+            config.cycle_signal_series_path,
+            base_dir,
+        ),
+        cycle_stateful_context_path=_resolve_optional_path(
+            config.cycle_stateful_context_path,
+            base_dir,
+        ),
+    )
+
+
 def resolve_run_config_paths(
     config: RunConfig,
     *,
@@ -144,11 +174,22 @@ def resolve_run_config_paths(
             )
         )
 
+    rag = config.rag
+    if rag is not None:
+        rag = RagConfig(
+            daily_sidecars=(
+                _resolve_daily_rag_sidecars(rag.daily_sidecars, base)
+                if rag.daily_sidecars is not None
+                else None
+            )
+        )
+
     return RunConfig(
         identity=config.identity,
         simulation=simulation,
         signals=signals,
         detection=detection,
+        rag=rag,
     )
 
 

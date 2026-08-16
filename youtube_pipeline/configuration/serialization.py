@@ -14,6 +14,7 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
 from .models import RunConfig
 
@@ -28,6 +29,26 @@ _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
         {"simulation_dir", "canonical_dataset_path", "output_dir"}
     ),
     DailyFrequencyBaselineConfig: frozenset({"simulation_dir", "output_dir"}),
+    DailyRagSidecarBuildConfig: frozenset(
+        {
+            "daily_events_path",
+            "output_dir",
+            "comments_path",
+            "cycle_window_inventory_path",
+            "daily_scores_path",
+            "daily_detector_manifest_path",
+            "cycle_signal_series_path",
+            "cycle_stateful_context_path",
+        }
+    ),
+}
+
+_OMITTED_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
+    DailyRagSidecarBuildConfig: frozenset({"run_id"}),
+}
+
+_OMITTED_NONE_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
+    RunConfig: frozenset({"rag"}),
 }
 
 
@@ -58,6 +79,11 @@ def _to_primitive(
         return value.isoformat()
     if is_dataclass(value) and not isinstance(value, type):
         path_fields = _PATH_FIELDS_BY_TYPE.get(type(value), frozenset())
+        omitted_fields = _OMITTED_FIELDS_BY_TYPE.get(type(value), frozenset())
+        omitted_none_fields = _OMITTED_NONE_FIELDS_BY_TYPE.get(
+            type(value),
+            frozenset(),
+        )
         return {
             field.name: _to_primitive(
                 getattr(value, field.name),
@@ -65,6 +91,11 @@ def _to_primitive(
                 path_field=field.name in path_fields,
             )
             for field in fields(value)
+            if field.name not in omitted_fields
+            and not (
+                field.name in omitted_none_fields
+                and getattr(value, field.name) is None
+            )
         }
     if isinstance(value, dict):
         return {
