@@ -28,7 +28,40 @@ Los siguientes valores se conservan temporalmente como
 
 Estos paths documentan y reproducen la implementación actual; no convierten el
 dataset o el experimento histórico en ubicaciones permanentes. Los módulos de
-dominio todavía contienen defaults equivalentes durante la transición. El
-perfil será la autoridad externa cuando cada etapa migre al resolver común, y
-los defaults legacy solo se retirarán en la Fase 8 tras demostrar que no tienen
-consumidores.
+dominio ya reciben paths explícitos; los wrappers legacy conservan defaults
+equivalentes únicamente durante la transición. El perfil es la autoridad
+externa del flujo integrado, y los defaults legacy solo se retirarán en la Fase
+8 tras demostrar que no tienen consumidores.
+
+## Ejecución integrada del bloque cíclico
+
+El entrypoint principal del bloque ya migrado consume el perfil completo con la
+CLI común y entrega a cada etapa únicamente su subconfiguración:
+
+```bash
+.venv/bin/python scripts/run_cyclic_pipeline.py \
+  --config configs/compatibility/cyclic_current.json \
+  --output-root outputs/cyclic_current \
+  --dry-run
+```
+
+`--output-root` evita escribir sobre el directorio histórico del perfil y
+reubica el árbol de artefactos conservando sus subdirectorios. Los parámetros
+metodológicos —ventanas, señales, umbrales y cooldown— permanecen en el JSON.
+La CLI común se limita a `--config`, `--run-id`, `--output-root`, el modo de
+ejecución y `--log-level`. El runner actual solo admite el modo protegido;
+`--execute` falla antes de generar artefactos.
+
+Los siguientes scripts por etapa permanecen temporalmente como wrappers de
+compatibilidad y herramientas de diagnóstico:
+
+- `run_cyclic_ingestion_simulation.py`;
+- `run_cyclic_ingestion_orchestrator.py`;
+- `run_cyclic_stateful_adapter.py`;
+- `run_cyclic_detection_connector.py`;
+- `run_cyclic_daily_signals.py`;
+- `run_daily_frequency_baseline.py`.
+
+No son una segunda autoridad para nuevas ejecuciones integradas y no deben
+recibir nuevos defaults metodológicos. Su posible retiro corresponde a la Fase
+8, después de verificar que no existan consumidores necesarios.
