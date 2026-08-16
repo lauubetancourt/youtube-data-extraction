@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 from dataclasses import dataclass
@@ -82,7 +81,7 @@ def _metadata_by_comment(input_inventory: pd.DataFrame) -> dict[str, dict[str, A
 
 @dataclass
 class CyclicStatefulAdapterConfig:
-    simulation_dir: str | Path = "experiments/xiao/media/log_3/cyclic_ingestion_simulation"
+    simulation_dir: str | Path
     run_monitoring: bool = False
     run_detection: bool = False
     run_rag: bool = False
@@ -120,13 +119,11 @@ def load_cyclic_stateful_adapter_config(
     *,
     overrides: dict[str, Any] | None = None,
 ) -> CyclicStatefulAdapterConfig:
-    payload: dict[str, Any] = {}
-    if config_file:
-        payload = _read_json(Path(config_file))
-    config_payload = payload.get("cyclic_stateful_adapter", payload)
-    if overrides:
-        config_payload = {**config_payload, **overrides}
-    return CyclicStatefulAdapterConfig.from_mapping(config_payload)
+    """Compatibility shim; configuration I/O belongs to the entrypoint layer."""
+
+    from .entrypoints.cyclic_stateful_adapter import load_legacy_stateful_adapter_config
+
+    return load_legacy_stateful_adapter_config(config_file, overrides=overrides)
 
 
 def _validate_input_artifacts(
@@ -687,45 +684,12 @@ def run_cyclic_stateful_adapter(config: CyclicStatefulAdapterConfig) -> dict[str
     }
 
 
-def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Prepare C-3 stateful cyclic ingestion inputs for future monitoring and "
-            "detection. This does not run monitoring, detection, RAG, LLMs, Serper, "
-            "embeddings, or vectorstores."
-        )
-    )
-    parser.add_argument("--config-file", default=None)
-    parser.add_argument(
-        "--simulation-dir",
-        default=None,
-        help="Directory containing C-0/C-2 cyclic ingestion artifacts.",
-    )
-    parser.add_argument("--run-monitoring", action="store_true")
-    parser.add_argument("--run-detection", action="store_true")
-    parser.add_argument("--run-rag", action="store_true")
-    return parser
-
-
 def main(argv: list[str] | None = None) -> None:
-    parser = _build_arg_parser()
-    args = parser.parse_args(argv)
-    overrides = {
-        key: value
-        for key, value in {
-            "simulation_dir": args.simulation_dir,
-            "run_monitoring": args.run_monitoring,
-            "run_detection": args.run_detection,
-            "run_rag": args.run_rag,
-        }.items()
-        if value is not None
-    }
-    try:
-        config = load_cyclic_stateful_adapter_config(args.config_file, overrides=overrides)
-        summary = run_cyclic_stateful_adapter(config)
-    except ValueError as exc:
-        parser.error(str(exc))
-    print(json.dumps(summary, indent=2, ensure_ascii=False))
+    """Compatibility shim for ``python -m youtube_pipeline.cyclic_stateful_adapter``."""
+
+    from .entrypoints.cyclic_stateful_adapter import main as entrypoint_main
+
+    entrypoint_main(argv)
 
 
 __all__ = [
