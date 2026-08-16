@@ -13,6 +13,7 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
 from .models import (
@@ -28,7 +29,7 @@ _ROOT_FIELDS = {"identity", "simulation", "signals", "detection", "rag"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter"}
 _SIGNALS_FIELDS = {"daily"}
 _DETECTION_FIELDS = {"connector", "daily_frequency"}
-_RAG_FIELDS = {"daily_sidecars"}
+_RAG_FIELDS = {"daily_sidecars", "daily_consumer"}
 
 
 def _require_object(value: Any, location: str) -> dict[str, Any]:
@@ -203,22 +204,33 @@ def _build_detection(payload: Any) -> DetectionConfig:
 def _build_rag(payload: Any, *, run_id: str) -> RagConfig:
     section = _require_object(payload, "rag")
     _reject_unknown_keys(section, _RAG_FIELDS, "rag")
-    if "daily_sidecars" not in section:
-        return RagConfig()
-    component_payload = _require_object(
-        section["daily_sidecars"],
-        "rag.daily_sidecars",
-    )
-    if "run_id" in component_payload:
-        raise ValueError(
-            "rag.daily_sidecars.run_id is not configurable; use identity.run_id."
-        )
-    return RagConfig(
-        daily_sidecars=_build_component(
-            DailyRagSidecarBuildConfig,
+    def build_identity_bound_component(
+        field_name: str,
+        config_type: type,
+    ) -> Any:
+        if field_name not in section:
+            return None
+        location = f"rag.{field_name}"
+        component_payload = _require_object(section[field_name], location)
+        if "run_id" in component_payload:
+            raise ValueError(
+                f"{location}.run_id is not configurable; use identity.run_id."
+            )
+        return _build_component(
+            config_type,
             {**component_payload, "run_id": run_id},
-            "rag.daily_sidecars",
+            location,
         )
+
+    return RagConfig(
+        daily_sidecars=build_identity_bound_component(
+            "daily_sidecars",
+            DailyRagSidecarBuildConfig,
+        ),
+        daily_consumer=build_identity_bound_component(
+            "daily_consumer",
+            DailyRagConsumerConfig,
+        ),
     )
 
 

@@ -9,6 +9,7 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
 
@@ -103,6 +104,7 @@ class RagConfig:
     """Composition of implemented RAG-stage configurations."""
 
     daily_sidecars: DailyRagSidecarBuildConfig | None = None
+    daily_consumer: DailyRagConsumerConfig | None = None
 
     def __post_init__(self) -> None:
         _require_optional_instance(
@@ -110,7 +112,12 @@ class RagConfig:
             self.daily_sidecars,
             DailyRagSidecarBuildConfig,
         )
-        if self.daily_sidecars is None:
+        _require_optional_instance(
+            "daily_consumer",
+            self.daily_consumer,
+            DailyRagConsumerConfig,
+        )
+        if self.daily_sidecars is None and self.daily_consumer is None:
             raise ValueError("RagConfig must configure at least one RAG stage.")
 
 
@@ -136,11 +143,26 @@ class RunConfig:
             for section in (self.simulation, self.signals, self.detection, self.rag)
         ):
             raise ValueError("RunConfig must configure at least one execution section.")
-        if (
-            self.rag is not None
-            and self.rag.daily_sidecars is not None
-            and self.rag.daily_sidecars.run_id != self.identity.run_id
-        ):
-            raise ValueError(
-                "rag.daily_sidecars.run_id must be supplied by identity.run_id."
-            )
+        if self.rag is not None:
+            rag_run_ids = {
+                "rag.daily_sidecars": (
+                    None
+                    if self.rag.daily_sidecars is None
+                    else self.rag.daily_sidecars.run_id
+                ),
+                "rag.daily_consumer": (
+                    None
+                    if self.rag.daily_consumer is None
+                    else self.rag.daily_consumer.run_id
+                ),
+            }
+            competing = [
+                name
+                for name, run_id in rag_run_ids.items()
+                if run_id is not None and run_id != self.identity.run_id
+            ]
+            if competing:
+                raise ValueError(
+                    ", ".join(competing)
+                    + ".run_id must be supplied by identity.run_id."
+                )

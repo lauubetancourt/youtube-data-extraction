@@ -9,6 +9,7 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
 from .models import DetectionConfig, RagConfig, RunConfig, SignalsConfig, SimulationConfig
@@ -118,6 +119,20 @@ def _resolve_daily_rag_sidecars(
     )
 
 
+def _resolve_daily_rag_consumer(
+    config: DailyRagConsumerConfig,
+    base_dir: Path,
+) -> DailyRagConsumerConfig:
+    config.validate()
+    assert config.sidecars_dir is not None
+    assert config.output_dir is not None
+    return replace(
+        config,
+        sidecars_dir=_resolve_path(config.sidecars_dir, base_dir),
+        output_dir=_resolve_path(config.output_dir, base_dir),
+    )
+
+
 def resolve_run_config_paths(
     config: RunConfig,
     *,
@@ -181,7 +196,12 @@ def resolve_run_config_paths(
                 _resolve_daily_rag_sidecars(rag.daily_sidecars, base)
                 if rag.daily_sidecars is not None
                 else None
-            )
+            ),
+            daily_consumer=(
+                _resolve_daily_rag_consumer(rag.daily_consumer, base)
+                if rag.daily_consumer is not None
+                else None
+            ),
         )
 
     return RunConfig(

@@ -14,6 +14,7 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
 from .models import RunConfig
@@ -41,10 +42,12 @@ _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
             "cycle_stateful_context_path",
         }
     ),
+    DailyRagConsumerConfig: frozenset({"sidecars_dir", "output_dir"}),
 }
 
 _OMITTED_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     DailyRagSidecarBuildConfig: frozenset({"run_id"}),
+    DailyRagConsumerConfig: frozenset({"run_id"}),
 }
 
 _OMITTED_NONE_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
