@@ -13,6 +13,7 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionConfig
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
@@ -29,7 +30,7 @@ _ROOT_FIELDS = {"identity", "simulation", "signals", "detection", "rag"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter"}
 _SIGNALS_FIELDS = {"daily"}
 _DETECTION_FIELDS = {"connector", "daily_frequency"}
-_RAG_FIELDS = {"daily_sidecars", "daily_consumer"}
+_RAG_FIELDS = {"daily_sidecars", "daily_consumer", "daily_context_selection"}
 
 
 def _require_object(value: Any, location: str) -> dict[str, Any]:
@@ -230,6 +231,10 @@ def _build_rag(payload: Any, *, run_id: str) -> RagConfig:
         daily_consumer=build_identity_bound_component(
             "daily_consumer",
             DailyRagConsumerConfig,
+        ),
+        daily_context_selection=build_identity_bound_component(
+            "daily_context_selection",
+            DailyContextSelectionConfig,
         ),
     )
 

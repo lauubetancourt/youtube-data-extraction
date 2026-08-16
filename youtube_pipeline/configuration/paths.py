@@ -9,6 +9,7 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionConfig
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
@@ -133,6 +134,22 @@ def _resolve_daily_rag_consumer(
     )
 
 
+def _resolve_daily_context_selection(
+    config: DailyContextSelectionConfig,
+    base_dir: Path,
+) -> DailyContextSelectionConfig:
+    config.validate()
+    assert config.consumer_dir is not None
+    assert config.sidecars_dir is not None
+    assert config.output_dir is not None
+    return replace(
+        config,
+        consumer_dir=_resolve_path(config.consumer_dir, base_dir),
+        sidecars_dir=_resolve_path(config.sidecars_dir, base_dir),
+        output_dir=_resolve_path(config.output_dir, base_dir),
+    )
+
+
 def resolve_run_config_paths(
     config: RunConfig,
     *,
@@ -200,6 +217,14 @@ def resolve_run_config_paths(
             daily_consumer=(
                 _resolve_daily_rag_consumer(rag.daily_consumer, base)
                 if rag.daily_consumer is not None
+                else None
+            ),
+            daily_context_selection=(
+                _resolve_daily_context_selection(
+                    rag.daily_context_selection,
+                    base,
+                )
+                if rag.daily_context_selection is not None
                 else None
             ),
         )

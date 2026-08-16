@@ -9,6 +9,7 @@ from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
 from youtube_pipeline.cyclic_orchestration import CyclicOrchestratorConfig
 from youtube_pipeline.cyclic_stateful_adapter import CyclicStatefulAdapterConfig
 from youtube_pipeline.daily_frequency_baseline import DailyFrequencyBaselineConfig
+from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionConfig
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 
@@ -105,6 +106,7 @@ class RagConfig:
 
     daily_sidecars: DailyRagSidecarBuildConfig | None = None
     daily_consumer: DailyRagConsumerConfig | None = None
+    daily_context_selection: DailyContextSelectionConfig | None = None
 
     def __post_init__(self) -> None:
         _require_optional_instance(
@@ -117,7 +119,19 @@ class RagConfig:
             self.daily_consumer,
             DailyRagConsumerConfig,
         )
-        if self.daily_sidecars is None and self.daily_consumer is None:
+        _require_optional_instance(
+            "daily_context_selection",
+            self.daily_context_selection,
+            DailyContextSelectionConfig,
+        )
+        if all(
+            config is None
+            for config in (
+                self.daily_sidecars,
+                self.daily_consumer,
+                self.daily_context_selection,
+            )
+        ):
             raise ValueError("RagConfig must configure at least one RAG stage.")
 
 
@@ -154,6 +168,11 @@ class RunConfig:
                     None
                     if self.rag.daily_consumer is None
                     else self.rag.daily_consumer.run_id
+                ),
+                "rag.daily_context_selection": (
+                    None
+                    if self.rag.daily_context_selection is None
+                    else self.rag.daily_context_selection.run_id
                 ),
             }
             competing = [
