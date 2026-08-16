@@ -39,7 +39,7 @@ class DailyContextSelectionConfigurationTests(unittest.TestCase):
         self.assertNotIn(LEGACY_OUTPUT_DIR, source)
         self.assertNotIn("import argparse", source)
 
-    def test_run_profile_reuses_component_config_and_identity_authority(self) -> None:
+    def test_run_profile_keeps_global_and_selection_identities_distinct(self) -> None:
         run = run_config_from_mapping(
             {
                 "identity": {"run_id": "run_context_selection"},
@@ -60,16 +60,15 @@ class DailyContextSelectionConfigurationTests(unittest.TestCase):
             run.rag.daily_context_selection,
             DailyContextSelectionConfig,
         )
-        self.assertEqual(
-            run.rag.daily_context_selection.run_id,
-            "run_context_selection",
-        )
+        self.assertIsNone(run.rag.daily_context_selection.run_id)
         self.assertEqual(
             run.rag.daily_context_selection.max_selected_tokens_per_event,
             456,
         )
         mapping = json.loads(canonical_run_config_json(run))
-        self.assertNotIn("run_id", mapping["rag"]["daily_context_selection"])
+        self.assertIsNone(
+            mapping["rag"]["daily_context_selection"]["run_id"]
+        )
 
     def test_resolves_all_context_selection_paths(self) -> None:
         run = run_config_from_mapping(
@@ -112,7 +111,12 @@ class DailyContextSelectionConfigurationTests(unittest.TestCase):
                 json.dumps(
                     {
                         "identity": {"run_id": "run_equivalent"},
-                        "rag": {"daily_context_selection": component},
+                        "rag": {
+                            "daily_context_selection": {
+                                **component,
+                                "run_id": "run_equivalent",
+                            }
+                        },
                     }
                 ),
                 encoding="utf-8",
@@ -162,6 +166,7 @@ class DailyContextSelectionConfigurationTests(unittest.TestCase):
                             "consumer_dir": consumer,
                             "sidecars_dir": sidecars,
                             "output_dir": common_output,
+                            "run_id": "run_selection_compatibility",
                             "max_selected_tokens_per_event": 500,
                         }
                     },
@@ -204,21 +209,31 @@ class DailyContextSelectionConfigurationTests(unittest.TestCase):
                 ).read_text(encoding="utf-8"),
             )
 
-    def test_component_run_id_cannot_compete_with_run_identity(self) -> None:
-        with self.assertRaisesRegex(ValueError, "use identity.run_id"):
-            run_config_from_mapping(
-                {
-                    "identity": {"run_id": "run_authority"},
-                    "rag": {
-                        "daily_context_selection": {
-                            "consumer_dir": "consumer",
-                            "sidecars_dir": "sidecars",
-                            "output_dir": "selection",
-                            "run_id": "competing_run_id",
-                        }
-                    },
-                }
-            )
+    def test_component_run_id_is_independent_from_run_identity(self) -> None:
+        run = run_config_from_mapping(
+            {
+                "identity": {"run_id": "global_run"},
+                "rag": {
+                    "daily_context_selection": {
+                        "consumer_dir": "consumer",
+                        "sidecars_dir": "sidecars",
+                        "output_dir": "selection",
+                        "run_id": "dragselect_stage",
+                    }
+                },
+            }
+        )
+
+        self.assertEqual(run.identity.run_id, "global_run")
+        self.assertEqual(
+            run.rag.daily_context_selection.run_id,
+            "dragselect_stage",
+        )
+        mapping = json.loads(canonical_run_config_json(run))
+        self.assertEqual(
+            mapping["rag"]["daily_context_selection"]["run_id"],
+            "dragselect_stage",
+        )
 
 
 if __name__ == "__main__":

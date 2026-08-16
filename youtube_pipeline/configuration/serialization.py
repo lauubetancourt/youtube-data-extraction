@@ -49,12 +49,6 @@ _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     ),
 }
 
-_OMITTED_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
-    DailyRagSidecarBuildConfig: frozenset({"run_id"}),
-    DailyRagConsumerConfig: frozenset({"run_id"}),
-    DailyContextSelectionConfig: frozenset({"run_id"}),
-}
-
 _OMITTED_NONE_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     RunConfig: frozenset({"rag"}),
 }
@@ -87,7 +81,6 @@ def _to_primitive(
         return value.isoformat()
     if is_dataclass(value) and not isinstance(value, type):
         path_fields = _PATH_FIELDS_BY_TYPE.get(type(value), frozenset())
-        omitted_fields = _OMITTED_FIELDS_BY_TYPE.get(type(value), frozenset())
         omitted_none_fields = _OMITTED_NONE_FIELDS_BY_TYPE.get(
             type(value),
             frozenset(),
@@ -99,8 +92,7 @@ def _to_primitive(
                 path_field=field.name in path_fields,
             )
             for field in fields(value)
-            if field.name not in omitted_fields
-            and not (
+            if not (
                 field.name in omitted_none_fields
                 and getattr(value, field.name) is None
             )

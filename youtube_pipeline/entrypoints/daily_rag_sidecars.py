@@ -72,7 +72,7 @@ def _derived_legacy_run_id(component_payload: Mapping[str, Any]) -> str:
 def _legacy_run_payload(component_payload: Mapping[str, Any]) -> dict[str, Any]:
     resolved_component = {**_legacy_defaults(), **dict(component_payload)}
     run_id = _derived_legacy_run_id(resolved_component)
-    resolved_component.pop("run_id", None)
+    resolved_component["run_id"] = run_id
     return {
         "identity": {"run_id": run_id},
         "rag": {"daily_sidecars": resolved_component},
@@ -88,7 +88,7 @@ def _component_overrides(
     run_id = component.pop("run_id", None)
     result: dict[str, Any] = {"rag": {"daily_sidecars": component}}
     if run_id is not None:
-        result["identity"] = {"run_id": run_id}
+        result["rag"]["daily_sidecars"]["run_id"] = run_id
     return result
 
 

@@ -264,6 +264,7 @@ class DailyRagSidecarTests(unittest.TestCase):
                 "cycle_signal_series_path": None,
                 "cycle_stateful_context_path": None,
                 "max_comments_per_context_unit": 2,
+                "run_id": "run_sidecars_compatibility",
             }
             run = run_config_from_mapping(
                 {

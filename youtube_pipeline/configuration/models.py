@@ -157,31 +157,3 @@ class RunConfig:
             for section in (self.simulation, self.signals, self.detection, self.rag)
         ):
             raise ValueError("RunConfig must configure at least one execution section.")
-        if self.rag is not None:
-            rag_run_ids = {
-                "rag.daily_sidecars": (
-                    None
-                    if self.rag.daily_sidecars is None
-                    else self.rag.daily_sidecars.run_id
-                ),
-                "rag.daily_consumer": (
-                    None
-                    if self.rag.daily_consumer is None
-                    else self.rag.daily_consumer.run_id
-                ),
-                "rag.daily_context_selection": (
-                    None
-                    if self.rag.daily_context_selection is None
-                    else self.rag.daily_context_selection.run_id
-                ),
-            }
-            competing = [
-                name
-                for name, run_id in rag_run_ids.items()
-                if run_id is not None and run_id != self.identity.run_id
-            ]
-            if competing:
-                raise ValueError(
-                    ", ".join(competing)
-                    + ".run_id must be supplied by identity.run_id."
-                )

@@ -60,7 +60,7 @@ def _legacy_component_with_overrides(
 
 def _legacy_run_payload(component_payload: Mapping[str, Any]) -> dict[str, Any]:
     component = dict(component_payload)
-    explicit_run_id = component.pop("run_id", None)
+    explicit_run_id = component.get("run_id")
     return {
         "identity": {
             "run_id": explicit_run_id or _LEGACY_IDENTITY_PLACEHOLDER,
@@ -83,7 +83,7 @@ def _component_overrides(
     run_id = component.pop("run_id", None)
     result: dict[str, Any] = {"rag": {"daily_context_selection": component}}
     if run_id is not None:
-        result["identity"] = {"run_id": run_id}
+        result["rag"]["daily_context_selection"]["run_id"] = run_id
     return result
 
 

@@ -33,7 +33,7 @@ class DailyRagSidecarConfigurationTests(unittest.TestCase):
         self.assertNotIn(LEGACY_OUTPUT_DIR, source)
         self.assertNotIn("import argparse", source)
 
-    def test_run_profile_reuses_component_config_and_identity_authority(self) -> None:
+    def test_run_profile_keeps_global_and_sidecar_identities_distinct(self) -> None:
         run = run_config_from_mapping(
             {
                 "identity": {"run_id": "run_daily_sidecars"},
@@ -54,9 +54,9 @@ class DailyRagSidecarConfigurationTests(unittest.TestCase):
             run.rag.daily_sidecars,
             DailyRagSidecarBuildConfig,
         )
-        self.assertEqual(run.rag.daily_sidecars.run_id, "run_daily_sidecars")
+        self.assertIsNone(run.rag.daily_sidecars.run_id)
         mapping = json.loads(canonical_run_config_json(run))
-        self.assertNotIn("run_id", mapping["rag"]["daily_sidecars"])
+        self.assertIsNone(mapping["rag"]["daily_sidecars"]["run_id"])
 
     def test_resolves_all_sidecar_paths_without_requiring_files(self) -> None:
         run = run_config_from_mapping(
@@ -119,7 +119,12 @@ class DailyRagSidecarConfigurationTests(unittest.TestCase):
                 json.dumps(
                     {
                         "identity": {"run_id": "run_equivalent"},
-                        "rag": {"daily_sidecars": component},
+                        "rag": {
+                            "daily_sidecars": {
+                                **component,
+                                "run_id": "run_equivalent",
+                            }
+                        },
                     }
                 ),
                 encoding="utf-8",
@@ -159,22 +164,26 @@ class DailyRagSidecarConfigurationTests(unittest.TestCase):
         )
         self.assertTrue(config.run_id.startswith("drun_"))
 
-    def test_component_run_id_cannot_compete_with_run_identity(self) -> None:
-        with self.assertRaisesRegex(ValueError, "use identity.run_id"):
-            run_config_from_mapping(
-                {
-                    "identity": {"run_id": "run_authority"},
-                    "rag": {
-                        "daily_sidecars": {
-                            "daily_events_path": "events.jsonl",
-                            "output_dir": "out",
-                            "comments_path": "comments.parquet",
-                            "cycle_window_inventory_path": "window.csv",
-                            "run_id": "competing_run_id",
-                        }
-                    },
-                }
-            )
+    def test_component_run_id_is_independent_from_run_identity(self) -> None:
+        run = run_config_from_mapping(
+            {
+                "identity": {"run_id": "global_run"},
+                "rag": {
+                    "daily_sidecars": {
+                        "daily_events_path": "events.jsonl",
+                        "output_dir": "out",
+                        "comments_path": "comments.parquet",
+                        "cycle_window_inventory_path": "window.csv",
+                        "run_id": "drun_stage",
+                    }
+                },
+            }
+        )
+
+        self.assertEqual(run.identity.run_id, "global_run")
+        self.assertEqual(run.rag.daily_sidecars.run_id, "drun_stage")
+        mapping = json.loads(canonical_run_config_json(run))
+        self.assertEqual(mapping["rag"]["daily_sidecars"]["run_id"], "drun_stage")
 
 
 if __name__ == "__main__":

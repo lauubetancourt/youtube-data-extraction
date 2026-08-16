@@ -202,37 +202,32 @@ def _build_detection(payload: Any) -> DetectionConfig:
     )
 
 
-def _build_rag(payload: Any, *, run_id: str) -> RagConfig:
+def _build_rag(payload: Any) -> RagConfig:
     section = _require_object(payload, "rag")
     _reject_unknown_keys(section, _RAG_FIELDS, "rag")
-    def build_identity_bound_component(
+    def build_component(
         field_name: str,
         config_type: type,
     ) -> Any:
         if field_name not in section:
             return None
         location = f"rag.{field_name}"
-        component_payload = _require_object(section[field_name], location)
-        if "run_id" in component_payload:
-            raise ValueError(
-                f"{location}.run_id is not configurable; use identity.run_id."
-            )
         return _build_component(
             config_type,
-            {**component_payload, "run_id": run_id},
+            section[field_name],
             location,
         )
 
     return RagConfig(
-        daily_sidecars=build_identity_bound_component(
+        daily_sidecars=build_component(
             "daily_sidecars",
             DailyRagSidecarBuildConfig,
         ),
-        daily_consumer=build_identity_bound_component(
+        daily_consumer=build_component(
             "daily_consumer",
             DailyRagConsumerConfig,
         ),
-        daily_context_selection=build_identity_bound_component(
+        daily_context_selection=build_component(
             "daily_context_selection",
             DailyContextSelectionConfig,
         ),
@@ -269,7 +264,7 @@ def run_config_from_mapping(
             else None
         ),
         rag=(
-            _build_rag(root["rag"], run_id=identity.run_id)
+            _build_rag(root["rag"])
             if "rag" in root
             else None
         ),

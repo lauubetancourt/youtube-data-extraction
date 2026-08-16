@@ -36,7 +36,7 @@ class DailyRagConsumerConfigurationTests(unittest.TestCase):
         self.assertNotIn(LEGACY_OUTPUT_DIR, source)
         self.assertNotIn("import argparse", source)
 
-    def test_run_profile_reuses_component_config_and_identity_authority(self) -> None:
+    def test_run_profile_keeps_global_and_consumer_identities_distinct(self) -> None:
         run = run_config_from_mapping(
             {
                 "identity": {"run_id": "run_daily_consumer"},
@@ -52,10 +52,10 @@ class DailyRagConsumerConfigurationTests(unittest.TestCase):
 
         self.assertIsNotNone(run.rag)
         self.assertIsInstance(run.rag.daily_consumer, DailyRagConsumerConfig)
-        self.assertEqual(run.rag.daily_consumer.run_id, "run_daily_consumer")
+        self.assertIsNone(run.rag.daily_consumer.run_id)
         self.assertEqual(run.rag.daily_consumer.max_estimated_input_tokens, 123)
         mapping = json.loads(canonical_run_config_json(run))
-        self.assertNotIn("run_id", mapping["rag"]["daily_consumer"])
+        self.assertIsNone(mapping["rag"]["daily_consumer"]["run_id"])
 
     def test_resolves_consumer_paths_without_requiring_artifacts(self) -> None:
         run = run_config_from_mapping(
@@ -94,7 +94,12 @@ class DailyRagConsumerConfigurationTests(unittest.TestCase):
                 json.dumps(
                     {
                         "identity": {"run_id": "run_equivalent"},
-                        "rag": {"daily_consumer": component},
+                        "rag": {
+                            "daily_consumer": {
+                                **component,
+                                "run_id": "run_equivalent",
+                            }
+                        },
                     }
                 ),
                 encoding="utf-8",
@@ -142,6 +147,7 @@ class DailyRagConsumerConfigurationTests(unittest.TestCase):
                         "daily_consumer": {
                             "sidecars_dir": sidecars,
                             "output_dir": common_output,
+                            "run_id": "run_consumer_compatibility",
                             "max_estimated_input_tokens": 16_000,
                         }
                     },
@@ -184,20 +190,27 @@ class DailyRagConsumerConfigurationTests(unittest.TestCase):
                 ),
             )
 
-    def test_component_run_id_cannot_compete_with_run_identity(self) -> None:
-        with self.assertRaisesRegex(ValueError, "use identity.run_id"):
-            run_config_from_mapping(
-                {
-                    "identity": {"run_id": "run_authority"},
-                    "rag": {
-                        "daily_consumer": {
-                            "sidecars_dir": "sidecars",
-                            "output_dir": "consumer",
-                            "run_id": "competing_run_id",
-                        }
-                    },
-                }
-            )
+    def test_component_run_id_is_independent_from_run_identity(self) -> None:
+        run = run_config_from_mapping(
+            {
+                "identity": {"run_id": "global_run"},
+                "rag": {
+                    "daily_consumer": {
+                        "sidecars_dir": "sidecars",
+                        "output_dir": "consumer",
+                        "run_id": "dragconsumer_stage",
+                    }
+                },
+            }
+        )
+
+        self.assertEqual(run.identity.run_id, "global_run")
+        self.assertEqual(run.rag.daily_consumer.run_id, "dragconsumer_stage")
+        mapping = json.loads(canonical_run_config_json(run))
+        self.assertEqual(
+            mapping["rag"]["daily_consumer"]["run_id"],
+            "dragconsumer_stage",
+        )
 
 
 if __name__ == "__main__":
