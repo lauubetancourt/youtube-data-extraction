@@ -69,6 +69,18 @@
       "run_detection": false,
       "run_rag": false
     },
+    "xiao_ema": {
+      "ts_col": "event_time_utc",
+      "text_col": "text",
+      "window_size": "120s",
+      "slide_interval": "30s",
+      "slow_window": "10min",
+      "sensitivity_threshold": 1.5,
+      "v_min": 46,
+      "cooldown": "3min",
+      "warmup_windows": 10,
+      "extreme_volume_multiplier": 2.0
+    },
     "daily_frequency": {
       "simulation_dir": "experiments/xiao/media/log_3/cyclic_ingestion_simulation",
       "output_dir": "experiments/xiao/media/log_3/cyclic_ingestion_simulation/daily_frequency_baseline_cooldown_0",

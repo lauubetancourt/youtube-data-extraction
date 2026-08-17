@@ -8,7 +8,7 @@ from typing import Any
 
 import pandas as pd
 
-from .detectors import create_detector
+from .detectors import XiaoEMAConfig, create_detector
 from .monitoring import default_activity_metrics, default_polarization_metrics
 
 
@@ -689,7 +689,11 @@ def _smoke_quality_row(
     }
 
 
-def run_cyclic_detection_smoke_test(config: CyclicDetectionConnectorConfig) -> dict[str, Any]:
+def run_cyclic_detection_smoke_test(
+    config: CyclicDetectionConnectorConfig,
+    *,
+    xiao_config: XiaoEMAConfig,
+) -> dict[str, Any]:
     simulation_dir = config.simulation_path()
     output_dir = config.output_path()
     adapter_manifest = _read_json(simulation_dir / "cycle_adapter_manifest.json")
@@ -715,7 +719,10 @@ def run_cyclic_detection_smoke_test(config: CyclicDetectionConnectorConfig) -> d
     monitoring_by_cycle = {row["cycle_id"]: row for row in monitoring_inputs}
 
     detector_logs: list[str] = []
-    detector = create_detector(log_fn=detector_logs.append)
+    detector = create_detector(
+        config=xiao_config,
+        log_fn=detector_logs.append,
+    )
     previous_completed_count = 0
     processed_cycle_ids: list[str] = []
     monitoring_outputs: list[dict[str, Any]] = []
@@ -913,10 +920,20 @@ def run_cyclic_detection_smoke_test(config: CyclicDetectionConnectorConfig) -> d
     }
 
 
-def run_cyclic_detection_connector(config: CyclicDetectionConnectorConfig) -> dict[str, Any]:
+def run_cyclic_detection_connector(
+    config: CyclicDetectionConnectorConfig,
+    *,
+    xiao_config: XiaoEMAConfig | None = None,
+) -> dict[str, Any]:
+    effective_xiao_config = xiao_config or XiaoEMAConfig()
+    if not isinstance(effective_xiao_config, XiaoEMAConfig):
+        raise TypeError("xiao_config must be XiaoEMAConfig or None.")
     config.validate_c4_scope()
     if config.mode == DETECTION_SMOKE_TEST_MODE:
-        return run_cyclic_detection_smoke_test(config)
+        return run_cyclic_detection_smoke_test(
+            config,
+            xiao_config=effective_xiao_config,
+        )
     simulation_dir = config.simulation_path()
     adapter_manifest = _read_json(simulation_dir / "cycle_adapter_manifest.json")
     stateful_context = _read_json(simulation_dir / "cycle_stateful_context.json")

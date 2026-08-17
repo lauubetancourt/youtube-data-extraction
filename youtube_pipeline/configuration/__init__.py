@@ -1,5 +1,7 @@
 """Typed composition models for pipeline run configuration."""
 
+from youtube_pipeline.detectors import XiaoEMAConfig
+
 from .loading import load_run_config, run_config_from_mapping
 from .models import (
     ArtifactsConfig,
@@ -35,4 +37,5 @@ __all__ = [
     "run_config_to_mapping",
     "SignalsConfig",
     "SimulationConfig",
+    "XiaoEMAConfig",
 ]

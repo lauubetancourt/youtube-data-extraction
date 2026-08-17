@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Protocol
 
 import pandas as pd
@@ -40,6 +41,73 @@ def _timedelta_steps(window_td: pd.Timedelta, slide_td: pd.Timedelta, label: str
     return window_ns // slide_ns
 
 
+@dataclass(frozen=True, slots=True)
+class XiaoEMAConfig:
+    """Authoritative methodological parameters for the XIAO EMA detector."""
+
+    ts_col: str = "event_time_utc"
+    text_col: str = "text"
+    window_size: str = "120s"
+    slide_interval: str = "30s"
+    slow_window: str = "10min"
+    sensitivity_threshold: float = 1.5
+    v_min: int = 46
+    cooldown: str = "3min"
+    warmup_windows: int = 10
+    extreme_volume_multiplier: float = 2.0
+
+    @classmethod
+    def from_mapping(cls, payload: dict[str, Any]) -> "XiaoEMAConfig":
+        config_payload = payload.get("xiao_ema", payload)
+        if not isinstance(config_payload, dict):
+            raise ValueError("XIAO EMA config must be an object.")
+        allowed = set(cls.__dataclass_fields__)
+        unknown = sorted(set(config_payload) - allowed)
+        if unknown:
+            raise ValueError(f"Unknown XIAO EMA config fields: {unknown}")
+        return cls(**config_payload)
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "ts_col",
+            "text_col",
+            "window_size",
+            "slide_interval",
+            "slow_window",
+            "cooldown",
+        ):
+            value = getattr(self, field_name)
+            if not isinstance(value, str):
+                raise TypeError(f"{field_name} must be a string.")
+            if not value.strip():
+                raise ValueError(f"{field_name} must not be empty.")
+        if self.sensitivity_threshold <= 0:
+            raise ValueError("sensitivity_threshold must be > 0.")
+        if self.v_min <= 0:
+            raise ValueError("v_min must be > 0.")
+        if self.warmup_windows < 0:
+            raise ValueError("warmup_windows must be >= 0.")
+        if self.extreme_volume_multiplier <= 0:
+            raise ValueError("extreme_volume_multiplier must be > 0.")
+
+        slide_td = pd.to_timedelta(self.slide_interval)
+        _timedelta_steps(
+            pd.to_timedelta(self.window_size),
+            slide_td,
+            label="window_size",
+        )
+        _timedelta_steps(
+            pd.to_timedelta(self.slow_window),
+            slide_td,
+            label="slow_window",
+        )
+        _timedelta_steps(
+            pd.to_timedelta(self.cooldown),
+            slide_td,
+            label="cooldown",
+        )
+
+
 class XiaoEMATriggerDetector:
     """
     EMA trigger inspired by Xiao et al. (2025), adapted to the audited stream cadence.
@@ -57,27 +125,48 @@ class XiaoEMATriggerDetector:
     def __init__(
         self,
         *,
-        ts_col: str = "event_time_utc",
-        text_col: str = "text",
-        window_size: str = "120s",
-        slide_interval: str = "30s",
-        slow_window: str = "10min",
-        sensitivity_threshold: float = 1.5,
-        v_min: int = 46,
-        cooldown: str = "3min",
+        config: XiaoEMAConfig | None = None,
+        ts_col: str | None = None,
+        text_col: str | None = None,
+        window_size: str | None = None,
+        slide_interval: str | None = None,
+        slow_window: str | None = None,
+        sensitivity_threshold: float | None = None,
+        v_min: int | None = None,
+        cooldown: str | None = None,
         log_fn: Callable[[str], None] | None = None,
     ) -> None:
-        self.ts_col = ts_col
-        self.text_col = text_col
-        self.window_td = pd.to_timedelta(window_size)
-        self.slide_td = pd.to_timedelta(slide_interval)
-        self.slow_window_td = pd.to_timedelta(slow_window)
-        self.cooldown_td = pd.to_timedelta(cooldown)
+        if config is not None and not isinstance(config, XiaoEMAConfig):
+            raise TypeError("config must be XiaoEMAConfig or None.")
+        overrides = {
+            key: value
+            for key, value in {
+                "ts_col": ts_col,
+                "text_col": text_col,
+                "window_size": window_size,
+                "slide_interval": slide_interval,
+                "slow_window": slow_window,
+                "sensitivity_threshold": sensitivity_threshold,
+                "v_min": v_min,
+                "cooldown": cooldown,
+            }.items()
+            if value is not None
+        }
+        if config is not None and overrides:
+            raise ValueError(
+                "Pass either XiaoEMAConfig or legacy keyword overrides, not both."
+            )
+        effective = config or XiaoEMAConfig()
+        if overrides:
+            effective = replace(effective, **overrides)
 
-        if sensitivity_threshold <= 0:
-            raise ValueError("sensitivity_threshold must be > 0.")
-        if v_min <= 0:
-            raise ValueError("v_min must be > 0.")
+        self.config = effective
+        self.ts_col = effective.ts_col
+        self.text_col = effective.text_col
+        self.window_td = pd.to_timedelta(effective.window_size)
+        self.slide_td = pd.to_timedelta(effective.slide_interval)
+        self.slow_window_td = pd.to_timedelta(effective.slow_window)
+        self.cooldown_td = pd.to_timedelta(effective.cooldown)
 
         self.fast_span_steps = _timedelta_steps(
             self.window_td, self.slide_td, label="window_size"
@@ -90,12 +179,12 @@ class XiaoEMATriggerDetector:
         # Academic EMA form: alpha = 2 / (n + 1)
         self.fast_alpha = 2.0 / float(self.fast_span_steps + 1)
         self.slow_alpha = 2.0 / float(self.slow_span_steps + 1)
-        self.sensitivity_threshold = float(sensitivity_threshold)
+        self.sensitivity_threshold = float(effective.sensitivity_threshold)
         self.log_fn = log_fn or print
         self.windows_processed = 0
-        self.warmup_windows = 10
-        self.v_min = int(v_min)
-        self.v_extreme = self.v_min * 2
+        self.warmup_windows = int(effective.warmup_windows)
+        self.v_min = int(effective.v_min)
+        self.v_extreme = int(self.v_min * effective.extreme_volume_multiplier)
 
         self._buffer: deque[dict[str, Any]] = deque()
         self._next_tick: pd.Timestamp | None = None
@@ -283,6 +372,7 @@ __all__ = [
     "DETECTOR_PARAM_ALIASES",
     "DETECTOR_REGISTRY",
     "TriggerDetector",
+    "XiaoEMAConfig",
     "XiaoEMATriggerDetector",
     "_align_timestamp_to_slide",
     "_timedelta_steps",

@@ -145,6 +145,7 @@ def _with_output_root(
                 field_name="detection.connector.output_dir",
             ),
         ),
+        xiao_ema=detection.xiao_ema,
         daily_frequency=replace(
             detection.daily_frequency,
             simulation_dir=output_root,
@@ -182,6 +183,8 @@ def _validate_cyclic_profile(config: RunConfig) -> None:
         missing.append("signals.daily")
     if detection is None or detection.connector is None:
         missing.append("detection.connector")
+    if detection is None or detection.xiao_ema is None:
+        missing.append("detection.xiao_ema")
     if detection is None or detection.daily_frequency is None:
         missing.append("detection.daily_frequency")
     if missing:
@@ -251,6 +254,7 @@ def run_cyclic_pipeline(resolved: ResolvedRunConfig) -> dict[str, Any]:
     assert signals.daily is not None
     assert detection is not None
     assert detection.connector is not None
+    assert detection.xiao_ema is not None
     assert detection.daily_frequency is not None
 
     stages = {
@@ -262,7 +266,8 @@ def run_cyclic_pipeline(resolved: ResolvedRunConfig) -> dict[str, Any]:
             simulation.stateful_adapter
         ),
         "detection_connector": run_cyclic_detection_connector(
-            detection.connector
+            detection.connector,
+            xiao_config=detection.xiao_ema,
         ),
         "daily_signals": run_cyclic_daily_signals(signals.daily),
         "daily_frequency": run_daily_frequency_baseline(

@@ -74,6 +74,7 @@ class CyclicResolvedVerticalCompatibilityTests(unittest.TestCase):
                                 "mode": "detection_dry_run",
                                 "max_cycles": 3,
                             },
+                            "xiao_ema": {},
                             "daily_frequency": {
                                 "simulation_dir": "cyclic",
                                 "signal_name": "active_window_comment_count",

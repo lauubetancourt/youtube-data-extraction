@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import ANY, patch
 
 import pandas as pd
 
@@ -15,6 +16,7 @@ from youtube_pipeline.cyclic_detection_connector import (
 from youtube_pipeline.entrypoints.cyclic_detection_connector import (
     load_legacy_detection_connector_config,
 )
+from youtube_pipeline.detectors import XiaoEMAConfig, create_detector
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -320,6 +322,34 @@ class CyclicDetectionConnectorTests(unittest.TestCase):
             )
             self.assertNotIn("comment_ids", monitoring[0])
             self.assertNotIn("comment_ids", detection[0])
+
+    def test_detection_smoke_test_receives_explicit_xiao_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            simulation_dir = base / "cyclic"
+            gold_path = base / "clean_comments.parquet"
+            self._write_artifacts(simulation_dir)
+            self._write_gold(gold_path)
+            xiao_config = XiaoEMAConfig()
+
+            with patch(
+                "youtube_pipeline.cyclic_detection_connector.create_detector",
+                wraps=create_detector,
+            ) as detector_factory:
+                run_cyclic_detection_connector(
+                    CyclicDetectionConnectorConfig(
+                        simulation_dir=simulation_dir,
+                        mode="detection_smoke_test",
+                        max_cycles=2,
+                        canonical_dataset_path=gold_path,
+                    ),
+                    xiao_config=xiao_config,
+                )
+
+            detector_factory.assert_called_once_with(
+                config=xiao_config,
+                log_fn=ANY,
+            )
 
     def test_detection_smoke_test_rejects_duplicate_gold_comment_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

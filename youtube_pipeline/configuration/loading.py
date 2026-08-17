@@ -18,6 +18,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
+from youtube_pipeline.detectors import XiaoEMAConfig
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
@@ -44,7 +45,7 @@ _ROOT_FIELDS = {
 _DATA_FIELDS = {"youtube_api", "local_files", "prepared_dataset", "cleaning"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter", "replay"}
 _SIGNALS_FIELDS = {"daily"}
-_DETECTION_FIELDS = {"connector", "daily_frequency"}
+_DETECTION_FIELDS = {"connector", "xiao_ema", "daily_frequency"}
 _RAG_FIELDS = {"daily_sidecars", "daily_consumer", "daily_context_selection"}
 
 
@@ -272,6 +273,15 @@ def _build_detection(payload: Any) -> DetectionConfig:
                 "detection.connector",
             )
             if "connector" in section
+            else None
+        ),
+        xiao_ema=(
+            _build_component(
+                XiaoEMAConfig,
+                section["xiao_ema"],
+                "detection.xiao_ema",
+            )
+            if "xiao_ema" in section
             else None
         ),
         daily_frequency=(

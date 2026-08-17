@@ -58,6 +58,7 @@ class CurrentCyclicCompatibilityProfileTests(unittest.TestCase):
 
         detector = run.detection.daily_frequency
         connector = run.detection.connector
+        xiao = run.detection.xiao_ema
         self.assertEqual(connector.mode, "detection_dry_run")
         self.assertEqual(connector.max_cycles, 5)
         self.assertEqual(
@@ -66,6 +67,14 @@ class CurrentCyclicCompatibilityProfileTests(unittest.TestCase):
         )
         self.assertFalse(connector.run_detection)
         self.assertFalse(connector.run_rag)
+        self.assertEqual(xiao.window_size, "120s")
+        self.assertEqual(xiao.slide_interval, "30s")
+        self.assertEqual(xiao.slow_window, "10min")
+        self.assertEqual(xiao.sensitivity_threshold, 1.5)
+        self.assertEqual(xiao.v_min, 46)
+        self.assertEqual(xiao.cooldown, "3min")
+        self.assertEqual(xiao.warmup_windows, 10)
+        self.assertEqual(xiao.extreme_volume_multiplier, 2.0)
         self.assertEqual(detector.signal_name, "new_comment_count")
         self.assertEqual(detector.baseline_window_size_cycles, 3)
         self.assertEqual(detector.k_multiplier, 2.0)

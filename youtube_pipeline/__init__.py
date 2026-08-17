@@ -19,6 +19,7 @@ from .storage import (
 from .stream_playback import (
     DEFAULT_DETECTOR,
     TriggerDetector,
+    XiaoEMAConfig,
     XiaoEMATriggerDetector,
     build_event_time_window_stream,
     create_detector,
@@ -54,5 +55,6 @@ __all__ = [
     "TriggerDetector",
     "write_jsonl",
     "write_parquet_dataset",
+    "XiaoEMAConfig",
     "XiaoEMATriggerDetector",
 ]

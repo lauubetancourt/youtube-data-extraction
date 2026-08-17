@@ -22,7 +22,7 @@ from youtube_pipeline.data_extraction import ExtractionConfig
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
-from .models import DataConfig, RunConfig, SimulationConfig
+from .models import DataConfig, DetectionConfig, RunConfig, SimulationConfig
 
 _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     CleaningConfig: frozenset({"input_path", "output_path"}),
@@ -62,6 +62,7 @@ _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
 
 _OMITTED_NONE_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     DataConfig: frozenset({"prepared_dataset"}),
+    DetectionConfig: frozenset({"xiao_ema"}),
     RunConfig: frozenset({"data", "rag", "artifacts"}),
     SimulationConfig: frozenset({"replay"}),
 }

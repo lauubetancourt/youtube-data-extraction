@@ -60,6 +60,7 @@ def _write_fixture(base: Path) -> Path:
                         "canonical_dataset_path": "comments.parquet",
                         "max_cycles": 3,
                     },
+                    "xiao_ema": {},
                     "daily_frequency": {
                         "simulation_dir": "profile_output",
                         "output_dir": "profile_output/baseline",

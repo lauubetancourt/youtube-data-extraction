@@ -14,6 +14,7 @@ from youtube_pipeline.daily_frequency_baseline import (
 )
 from youtube_pipeline.entrypoints.cyclic_detection_connector import (
     load_legacy_detection_connector_config,
+    resolve_cyclic_detection_config,
     resolve_cyclic_detection_connector_config,
 )
 from youtube_pipeline.entrypoints.cyclic_ingestion import (
@@ -71,6 +72,17 @@ class DetectionConfigurationTests(unittest.TestCase):
         self.assertEqual(baseline.simulation_dir, expected_simulation)
         self.assertEqual(baseline.cooldown_cycles, 0)
         self.assertEqual(baseline.min_count, 500)
+
+        detection = resolve_cyclic_detection_config(
+            config_file=profile,
+            base_dir=repository_root,
+        )
+        self.assertEqual(detection.xiao_ema.window_size, "120s")
+        self.assertEqual(detection.xiao_ema.slide_interval, "30s")
+        self.assertEqual(detection.xiao_ema.slow_window, "10min")
+        self.assertEqual(detection.xiao_ema.sensitivity_threshold, 1.5)
+        self.assertEqual(detection.xiao_ema.v_min, 46)
+        self.assertEqual(detection.xiao_ema.cooldown, "3min")
 
 
 if __name__ == "__main__":

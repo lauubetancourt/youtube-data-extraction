@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from youtube_pipeline.configuration import (
+    DetectionConfig,
     load_run_config,
     resolve_run_config,
     run_config_from_mapping,
@@ -38,7 +39,8 @@ def _legacy_run_payload(component_payload: Mapping[str, Any]) -> dict[str, Any]:
                 "simulation_dir": LEGACY_OUTPUT_DIR,
                 "canonical_dataset_path": LEGACY_INPUT_PATH,
                 **dict(component_payload),
-            }
+            },
+            "xiao_ema": {},
         },
     }
 
@@ -71,13 +73,13 @@ def load_legacy_detection_connector_config(
     return run.detection.connector
 
 
-def resolve_cyclic_detection_connector_config(
+def resolve_cyclic_detection_config(
     *,
     config_file: str | Path | None,
     overrides: Mapping[str, Any] | None = None,
     base_dir: str | Path,
-) -> CyclicDetectionConnectorConfig:
-    """Resolve either a RunConfig profile or the legacy component format."""
+) -> DetectionConfig:
+    """Resolve the connector and its explicit XIAO subconfiguration."""
 
     if config_file is not None:
         path = Path(config_file)
@@ -104,7 +106,26 @@ def resolve_cyclic_detection_connector_config(
     resolved = resolve_run_config(run, base_dir=base_dir).config
     if resolved.detection is None or resolved.detection.connector is None:
         raise ValueError("RunConfig must include detection.connector for this entrypoint.")
-    return resolved.detection.connector
+    if resolved.detection.xiao_ema is None:
+        raise ValueError("RunConfig must include detection.xiao_ema for this entrypoint.")
+    return resolved.detection
+
+
+def resolve_cyclic_detection_connector_config(
+    *,
+    config_file: str | Path | None,
+    overrides: Mapping[str, Any] | None = None,
+    base_dir: str | Path,
+) -> CyclicDetectionConnectorConfig:
+    """Compatibility view returning only the connector configuration."""
+
+    detection = resolve_cyclic_detection_config(
+        config_file=config_file,
+        overrides=overrides,
+        base_dir=base_dir,
+    )
+    assert detection.connector is not None
+    return detection.connector
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -145,12 +166,17 @@ def main(argv: list[str] | None = None) -> None:
         "run_rag": args.run_rag,
     }
     try:
-        config = resolve_cyclic_detection_connector_config(
+        detection = resolve_cyclic_detection_config(
             config_file=args.config_file,
             overrides=overrides,
             base_dir=Path.cwd(),
         )
-        summary = run_cyclic_detection_connector(config)
+        assert detection.connector is not None
+        assert detection.xiao_ema is not None
+        summary = run_cyclic_detection_connector(
+            detection.connector,
+            xiao_config=detection.xiao_ema,
+        )
     except ValueError as exc:
         parser.error(str(exc))
     print(json.dumps(summary, indent=2, ensure_ascii=False))
@@ -159,6 +185,7 @@ def main(argv: list[str] | None = None) -> None:
 __all__ = [
     "load_legacy_detection_connector_config",
     "main",
+    "resolve_cyclic_detection_config",
     "resolve_cyclic_detection_connector_config",
 ]
 

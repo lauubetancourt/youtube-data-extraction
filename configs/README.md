@@ -17,7 +17,9 @@ simulación cíclica
 
 El perfil corresponde a la simulación `sim_42fc5b0f114b` y a la variante
 vigente del baseline diario con `cooldown_cycles = 0`. No incluye RAG,
-adquisición, retrospectiva ni XIAO EMA porque no forman parte de esta ejecución.
+adquisición ni retrospectiva. Incluye explícitamente los parámetros XIAO EMA
+que consume el conector cuando se ejecuta en modo de detección, aunque el perfil
+de compatibilidad conserve actualmente `detection_dry_run`.
 
 Los siguientes valores se conservan temporalmente como
 `LEGACY_COMPATIBILITY_DEFAULT`:

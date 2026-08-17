@@ -295,6 +295,7 @@ def resolve_run_config_paths(
                 if detection.connector is not None
                 else None
             ),
+            xiao_ema=detection.xiao_ema,
             daily_frequency=(
                 _resolve_daily_frequency(detection.daily_frequency, base)
                 if detection.daily_frequency is not None

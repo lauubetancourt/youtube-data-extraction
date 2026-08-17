@@ -14,6 +14,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
+from youtube_pipeline.detectors import XiaoEMAConfig
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
@@ -176,6 +177,7 @@ class DetectionConfig:
     """Composition of implemented detector configurations."""
 
     connector: CyclicDetectionConnectorConfig | None = None
+    xiao_ema: XiaoEMAConfig | None = None
     daily_frequency: DailyFrequencyBaselineConfig | None = None
 
     def __post_init__(self) -> None:
@@ -185,11 +187,20 @@ class DetectionConfig:
             CyclicDetectionConnectorConfig,
         )
         _require_optional_instance(
+            "xiao_ema",
+            self.xiao_ema,
+            XiaoEMAConfig,
+        )
+        _require_optional_instance(
             "daily_frequency",
             self.daily_frequency,
             DailyFrequencyBaselineConfig,
         )
-        if self.connector is None and self.daily_frequency is None:
+        if (
+            self.connector is None
+            and self.xiao_ema is None
+            and self.daily_frequency is None
+        ):
             raise ValueError("DetectionConfig must configure at least one detector.")
 
 
