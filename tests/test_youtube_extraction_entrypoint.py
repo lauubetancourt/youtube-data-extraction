@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import inspect
 import json
 import logging
@@ -18,6 +19,8 @@ from youtube_pipeline.entrypoints.youtube_extraction import (
     main,
     resolve_youtube_api_key,
     resolve_youtube_extraction_config,
+    resolve_youtube_extraction_run,
+    run_resolved_youtube_extraction,
     run_youtube_extraction,
 )
 
@@ -144,6 +147,92 @@ class YouTubeExtractionEntrypointTests(unittest.TestCase):
             logger,
             api_key="infrastructure-secret",
         )
+
+    def test_resolved_run_enriches_primary_metadata_without_replacing_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            profile = base / "profile.json"
+            profile.write_text(
+                json.dumps(
+                    {
+                        "identity": {"run_id": "acquisition_trace"},
+                        "data": {
+                            "youtube_api": {
+                                "query": "synthetic query",
+                                "data_root": "outputs/data",
+                                "metadata_path": "outputs/metadata/run.json",
+                                "save_legacy_csv": False,
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            resolved = resolve_youtube_extraction_run(
+                config_file=profile,
+                base_dir=base,
+            )
+            metadata_path = base / "outputs" / "metadata" / "run.json"
+            metadata_path.parent.mkdir(parents=True)
+            original_metadata = {
+                "run_at_utc": "2026-08-17T12:00:00+00:00",
+                "config": {"query": "synthetic query"},
+                "quota_hit": False,
+                "quota_stage": None,
+                "errors": [],
+                "persisted": {"comments_jsonl": "outputs/data/comments.jsonl"},
+            }
+            metadata_path.write_text(
+                json.dumps(original_metadata),
+                encoding="utf-8",
+            )
+            summary = {
+                "videos_found": 2,
+                "comments_found": 3,
+                "run_metadata": str(metadata_path),
+            }
+            logger = logging.getLogger("test.youtube.resolved")
+
+            with patch.object(
+                entrypoint_module,
+                "run_youtube_extraction",
+                return_value=summary,
+            ) as acquisition:
+                result = run_resolved_youtube_extraction(resolved, logger)
+
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+        self.assertIs(result, summary)
+        acquisition.assert_called_once_with(
+            resolved.config.data.youtube_api,
+            logger,
+        )
+        for key, value in original_metadata.items():
+            self.assertEqual(metadata[key], value)
+        self.assertEqual(metadata["run_id"], "acquisition_trace")
+        self.assertEqual(metadata["config_hash"], resolved.config_hash)
+        self.assertEqual(
+            metadata["resolved_config"]["data"]["youtube_api"]["data_root"],
+            "outputs/data",
+        )
+        self.assertEqual(
+            metadata["resolved_config"]["data"]["youtube_api"]["metadata_path"],
+            "outputs/metadata/run.json",
+        )
+        canonical = json.dumps(
+            metadata["resolved_config"],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        self.assertEqual(
+            hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+            metadata["config_hash"],
+        )
+        resolved_serialized = json.dumps(metadata["resolved_config"])
+        self.assertNotIn(str(base.resolve()), resolved_serialized)
+        self.assertNotIn("api_key", json.dumps(metadata).lower())
 
     def test_dry_run_does_not_resolve_secret_or_create_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

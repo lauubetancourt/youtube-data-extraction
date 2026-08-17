@@ -12,6 +12,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from youtube_pipeline.configuration import (
+    ResolvedRunConfig,
     load_run_config,
     resolve_run_config,
     run_config_from_mapping,
@@ -101,6 +102,24 @@ def resolve_youtube_extraction_config(
 ) -> ExtractionConfig:
     """Resolve either a RunConfig profile or the legacy component format."""
 
+    resolved = resolve_youtube_extraction_run(
+        config_file=config_file,
+        overrides=overrides,
+        base_dir=base_dir,
+    )
+    assert resolved.config.data is not None
+    assert resolved.config.data.youtube_api is not None
+    return resolved.config.data.youtube_api
+
+
+def resolve_youtube_extraction_run(
+    *,
+    config_file: str | Path | None,
+    overrides: Mapping[str, Any] | None = None,
+    base_dir: str | Path,
+) -> ResolvedRunConfig:
+    """Resolve acquisition while retaining its execution-level identity."""
+
     if config_file is not None:
         path = Path(config_file)
         payload = _read_json_object(path)
@@ -128,10 +147,13 @@ def resolve_youtube_extraction_config(
             )
         )
 
-    resolved = resolve_run_config(run, base_dir=base_dir).config
-    if resolved.data is None or resolved.data.youtube_api is None:
+    resolved = resolve_run_config(run, base_dir=base_dir)
+    if (
+        resolved.config.data is None
+        or resolved.config.data.youtube_api is None
+    ):
         raise ValueError("RunConfig must include data.youtube_api for this entrypoint.")
-    return resolved.data.youtube_api
+    return resolved
 
 
 def resolve_youtube_api_key() -> str:
@@ -157,6 +179,51 @@ def run_youtube_extraction(
         logger,
         api_key=resolve_youtube_api_key(),
     )
+
+
+def _attach_resolved_config_to_metadata(
+    metadata_path: str | Path,
+    resolved: ResolvedRunConfig,
+) -> None:
+    path = Path(metadata_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Acquisition run metadata not found: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise TypeError("Acquisition run metadata must be a JSON object.")
+    resolved_config = json.loads(resolved.canonical_json)
+    if not isinstance(resolved_config, dict):
+        raise TypeError("resolved_config must serialize to an object.")
+    payload.update(
+        {
+            "run_id": resolved.config.identity.run_id,
+            "config_hash": resolved.config_hash,
+            "resolved_config": resolved_config,
+        }
+    )
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def run_resolved_youtube_extraction(
+    resolved: ResolvedRunConfig,
+    logger: logging.Logger,
+) -> dict[str, Any]:
+    """Run acquisition and enrich its existing primary metadata once."""
+
+    if not isinstance(resolved, ResolvedRunConfig):
+        raise TypeError("resolved must be ResolvedRunConfig.")
+    data = resolved.config.data
+    if data is None or data.youtube_api is None:
+        raise ValueError("RunConfig must include data.youtube_api for acquisition.")
+    summary = run_youtube_extraction(data.youtube_api, logger)
+    metadata_path = summary.get("run_metadata")
+    if not isinstance(metadata_path, (str, Path)):
+        raise ValueError("Acquisition summary must include run_metadata.")
+    _attach_resolved_config_to_metadata(metadata_path, resolved)
+    return summary
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -241,18 +308,21 @@ def main(
         if value is not None
     }
     try:
-        config = resolve_youtube_extraction_config(
+        resolved = resolve_youtube_extraction_run(
             config_file=args.config_file,
             overrides=overrides,
             base_dir=Path.cwd() if base_dir is None else base_dir,
         )
+        assert resolved.config.data is not None
+        assert resolved.config.data.youtube_api is not None
+        config = resolved.config.data.youtube_api
         if args.dry_run:
             logger.info(
                 "Dry run. Configuracion final: %s",
                 json.dumps(config.as_dict(), ensure_ascii=False),
             )
             return
-        summary = run_youtube_extraction(config, logger)
+        summary = run_resolved_youtube_extraction(resolved, logger)
     except (FileNotFoundError, RuntimeError, TypeError, ValueError) as exc:
         parser.error(str(exc))
 
@@ -272,6 +342,8 @@ __all__ = [
     "main",
     "resolve_youtube_api_key",
     "resolve_youtube_extraction_config",
+    "resolve_youtube_extraction_run",
+    "run_resolved_youtube_extraction",
     "run_youtube_extraction",
 ]
 
