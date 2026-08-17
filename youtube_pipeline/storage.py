@@ -1,11 +1,41 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+
+@dataclass(frozen=True)
+class LocalFilesConfig:
+    """Input tables and destination for one local-files storage execution."""
+
+    videos_path: str | Path
+    comments_path: str | Path
+    data_root: str | Path = "data"
+
+    @classmethod
+    def from_mapping(cls, payload: dict[str, Any]) -> "LocalFilesConfig":
+        config_payload = payload.get("local_files", payload)
+        if not isinstance(config_payload, dict):
+            raise ValueError("Local files config must be an object.")
+        allowed = set(cls.__dataclass_fields__)
+        unknown = sorted(set(config_payload) - allowed)
+        if unknown:
+            raise ValueError(f"Unknown local files config fields: {unknown}")
+        return cls(**config_payload)
+
+
+def _read_local_table(path: str | Path) -> pd.DataFrame:
+    source = Path(path)
+    if source.is_dir() or source.suffix.lower() == ".parquet":
+        return pd.read_parquet(source)
+    if source.suffix.lower() == ".csv":
+        return pd.read_csv(source)
+    raise ValueError(f"Unsupported file format: {source}")
 
 
 def _utc_now_stamp() -> str:
@@ -148,3 +178,17 @@ def persist_batch_snapshot(
         "videos_parquet": str(videos_parquet),
         "comments_parquet": str(comments_parquet),
     }
+
+
+def persist_local_files(config: LocalFilesConfig) -> dict[str, Any]:
+    """Load configured local tables and preserve the existing Bronze/Silver contract."""
+
+    if not isinstance(config, LocalFilesConfig):
+        raise TypeError("config must be LocalFilesConfig.")
+    videos_df = _read_local_table(config.videos_path)
+    comments_df = _read_local_table(config.comments_path)
+    return persist_batch_snapshot(
+        videos_df,
+        comments_df,
+        data_root=str(config.data_root),
+    )

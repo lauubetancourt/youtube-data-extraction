@@ -17,6 +17,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
+from youtube_pipeline.storage import LocalFilesConfig
 
 from .models import (
     DataConfig,
@@ -29,7 +30,7 @@ from .models import (
 )
 
 _ROOT_FIELDS = {"identity", "data", "simulation", "signals", "detection", "rag"}
-_DATA_FIELDS = {"youtube_api"}
+_DATA_FIELDS = {"youtube_api", "local_files"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter"}
 _SIGNALS_FIELDS = {"daily"}
 _DETECTION_FIELDS = {"connector", "daily_frequency"}
@@ -134,6 +135,7 @@ def _build_data(payload: Any) -> DataConfig:
     section = _require_object(payload, "data")
     _reject_unknown_keys(section, _DATA_FIELDS, "data")
     youtube_api = None
+    local_files = None
     if "youtube_api" in section:
         component_payload = _require_object(
             section["youtube_api"],
@@ -149,7 +151,16 @@ def _build_data(payload: Any) -> DataConfig:
             component_payload,
             "data.youtube_api",
         )
-    return DataConfig(youtube_api=youtube_api)
+    if "local_files" in section:
+        local_files = _build_component(
+            LocalFilesConfig,
+            section["local_files"],
+            "data.local_files",
+        )
+    return DataConfig(
+        youtube_api=youtube_api,
+        local_files=local_files,
+    )
 
 
 def _build_simulation(payload: Any) -> SimulationConfig:

@@ -20,10 +20,13 @@ from youtube_pipeline import (  # noqa: E402
     clean_comments_dataframe,
     create_detector,
     get_detector_names,
-    persist_batch_snapshot,
+    persist_local_files,
     read_dataset_for_playback,
     replay_events,
     run_extraction_pipeline,
+)
+from youtube_pipeline.entrypoints.local_files_storage import (  # noqa: E402
+    load_legacy_local_files_config,
 )
 from youtube_pipeline.entrypoints.youtube_extraction import (  # noqa: E402
     resolve_youtube_api_key,
@@ -58,9 +61,15 @@ def _write_table(df: pd.DataFrame, path: str | Path) -> Path:
 
 
 def run_storage(videos_path: str, comments_path: str, data_root: str) -> dict[str, Any]:
-    videos_df = _read_table(videos_path)
-    comments_df = _read_table(comments_path)
-    return persist_batch_snapshot(videos_df, comments_df, data_root=data_root)
+    config = load_legacy_local_files_config(
+        config_file=None,
+        overrides={
+            "videos_path": videos_path,
+            "comments_path": comments_path,
+            "data_root": data_root,
+        },
+    )
+    return persist_local_files(config)
 
 
 def _read_json_config(config_file: str | None) -> dict[str, Any]:

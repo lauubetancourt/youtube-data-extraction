@@ -13,6 +13,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
+from youtube_pipeline.storage import LocalFilesConfig
 
 
 def _require_optional_instance(
@@ -45,11 +46,17 @@ class DataConfig:
     """Composition of implemented data-source configurations."""
 
     youtube_api: ExtractionConfig | None = None
+    local_files: LocalFilesConfig | None = None
 
     def __post_init__(self) -> None:
         _require_optional_instance("youtube_api", self.youtube_api, ExtractionConfig)
-        if self.youtube_api is None:
-            raise ValueError("DataConfig must configure at least one data source.")
+        _require_optional_instance("local_files", self.local_files, LocalFilesConfig)
+        configured_sources = sum(
+            source is not None
+            for source in (self.youtube_api, self.local_files)
+        )
+        if configured_sources != 1:
+            raise ValueError("DataConfig must configure exactly one data source.")
 
 
 @dataclass(frozen=True, slots=True)

@@ -3,9 +3,11 @@
 from .cleaning import clean_comments_dataframe
 from .data_extraction import ExtractionConfig, run_extraction_pipeline
 from .storage import (
+    LocalFilesConfig,
     normalize_comment_timestamps,
     normalize_video_timestamps,
     persist_batch_snapshot,
+    persist_local_files,
     write_jsonl,
     write_parquet_dataset,
 )
@@ -31,9 +33,11 @@ __all__ = [
     "default_polarization_metrics",
     "ExtractionConfig",
     "get_detector_names",
+    "LocalFilesConfig",
     "normalize_comment_timestamps",
     "normalize_video_timestamps",
     "persist_batch_snapshot",
+    "persist_local_files",
     "read_dataset_for_playback",
     "run_extraction_pipeline",
     "replay_events",

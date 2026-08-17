@@ -13,6 +13,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
+from youtube_pipeline.storage import LocalFilesConfig
 
 from .models import (
     DataConfig,
@@ -51,6 +52,18 @@ def _resolve_youtube_api(
             if config.metadata_path is None
             else str(_resolve_path(config.metadata_path, base_dir))
         ),
+    )
+
+
+def _resolve_local_files(
+    config: LocalFilesConfig,
+    base_dir: Path,
+) -> LocalFilesConfig:
+    return replace(
+        config,
+        videos_path=_resolve_path(config.videos_path, base_dir),
+        comments_path=_resolve_path(config.comments_path, base_dir),
+        data_root=_resolve_path(config.data_root, base_dir),
     )
 
 
@@ -191,7 +204,12 @@ def resolve_run_config_paths(
                 _resolve_youtube_api(data.youtube_api, base)
                 if data.youtube_api is not None
                 else None
-            )
+            ),
+            local_files=(
+                _resolve_local_files(data.local_files, base)
+                if data.local_files is not None
+                else None
+            ),
         )
 
     simulation = config.simulation

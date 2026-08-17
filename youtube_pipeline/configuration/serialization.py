@@ -18,11 +18,15 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
+from youtube_pipeline.storage import LocalFilesConfig
 
 from .models import RunConfig
 
 _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     ExtractionConfig: frozenset({"data_root", "metadata_path"}),
+    LocalFilesConfig: frozenset(
+        {"videos_path", "comments_path", "data_root"}
+    ),
     CyclicIngestionConfig: frozenset({"input_path", "output_dir"}),
     CyclicOrchestratorConfig: frozenset({"simulation_dir"}),
     CyclicStatefulAdapterConfig: frozenset({"simulation_dir"}),
