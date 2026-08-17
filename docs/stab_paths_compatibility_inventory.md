@@ -112,3 +112,16 @@ directamente el mismo entrypoint:
 No se retiraron los scripts, entrypoints, loaders legacy, defaults ni contratos
 de configuración. Las tres fachadas `python -m` diarias RAG permanecen sin
 cambios y requieren una decisión independiente.
+
+## Resultado de Fase 8C
+
+Con aprobación independiente se retiraron las tres fachadas `python -m` de los
+módulos de dominio RAG diario. Sus sucesores versionados siguen siendo:
+
+- `scripts/build_daily_rag_sidecars.py`;
+- `scripts/build_daily_rag_consumer_payloads.py`;
+- `scripts/build_daily_rag_context_selection.py`.
+
+Los scripts continúan importando directamente los mismos entrypoints. No se
+modificaron los loaders, los contratos de sidecars, los manifests, el dry-run
+ni las fórmulas de las identidades de etapa.

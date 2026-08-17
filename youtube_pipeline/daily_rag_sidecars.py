@@ -1207,14 +1207,6 @@ def write_daily_rag_sidecar_artifacts(
     )
 
 
-def main(argv: list[str] | None = None) -> None:
-    """Compatibility shim for ``python -m youtube_pipeline.daily_rag_sidecars``."""
-
-    from .entrypoints.daily_rag_sidecars import main as entrypoint_main
-
-    entrypoint_main(argv)
-
-
 __all__ = [
     "DAILY_CONTEXT_UNIT_COMMENT_MAP_FILE",
     "DAILY_EVENT_COMMENT_INVENTORY_FILE",
@@ -1234,7 +1226,3 @@ __all__ = [
     "write_daily_rag_sidecar_artifacts",
     "write_daily_rag_sidecar_artifacts_from_config",
 ]
-
-
-if __name__ == "__main__":
-    main()

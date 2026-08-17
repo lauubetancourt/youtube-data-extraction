@@ -928,21 +928,9 @@ def write_daily_context_selection_artifacts(**kwargs: Any) -> dict[str, Any]:
     )
 
 
-def main(argv: list[str] | None = None) -> None:
-    """Compatibility shim for ``python -m daily_rag_context_selection``."""
-
-    from .entrypoints.daily_rag_context_selection import main as entrypoint_main
-
-    entrypoint_main(argv)
-
-
 __all__ = [
     "DAILY_CONTEXT_SELECTION_ARTIFACT_VERSION",
     "DailyContextSelectionConfig",
     "write_daily_context_selection_artifacts",
     "write_daily_context_selection_artifacts_from_config",
 ]
-
-
-if __name__ == "__main__":
-    main()

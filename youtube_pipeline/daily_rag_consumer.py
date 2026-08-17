@@ -849,21 +849,9 @@ def write_daily_rag_consumer_artifacts(**kwargs: Any) -> dict[str, Any]:
     )
 
 
-def main(argv: list[str] | None = None) -> None:
-    """Compatibility shim for ``python -m youtube_pipeline.daily_rag_consumer``."""
-
-    from .entrypoints.daily_rag_consumer import main as entrypoint_main
-
-    entrypoint_main(argv)
-
-
 __all__ = [
     "DAILY_RAG_CONSUMER_ARTIFACT_VERSION",
     "DailyRagConsumerConfig",
     "write_daily_rag_consumer_artifacts",
     "write_daily_rag_consumer_artifacts_from_config",
 ]
-
-
-if __name__ == "__main__":
-    main()
