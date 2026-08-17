@@ -130,21 +130,6 @@ class CyclicIngestionConfig:
         return Path(self.output_dir)
 
 
-def load_cyclic_ingestion_config(
-    config_file: str | Path | None,
-    *,
-    overrides: dict[str, Any] | None = None,
-) -> CyclicIngestionConfig:
-    """Compatibility shim; configuration I/O belongs to the entrypoint layer."""
-
-    from .entrypoints.cyclic_ingestion import load_legacy_cyclic_ingestion_config
-
-    return load_legacy_cyclic_ingestion_config(
-        config_file,
-        overrides=overrides,
-    )
-
-
 def _prepare_comments(
     raw_df: pd.DataFrame,
     config: CyclicIngestionConfig,
@@ -738,5 +723,4 @@ def build_cyclic_ingestion_dry_run(config: CyclicIngestionConfig) -> dict[str, A
 __all__ = [
     "CyclicIngestionConfig",
     "build_cyclic_ingestion_dry_run",
-    "load_cyclic_ingestion_config",
 ]

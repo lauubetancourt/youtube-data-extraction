@@ -118,18 +118,6 @@ class CyclicOrchestratorConfig:
             )
 
 
-def load_cyclic_orchestrator_config(
-    config_file: str | Path | None,
-    *,
-    overrides: dict[str, Any] | None = None,
-) -> CyclicOrchestratorConfig:
-    """Compatibility shim; configuration I/O belongs to the entrypoint layer."""
-
-    from .entrypoints.cyclic_orchestration import load_legacy_orchestrator_config
-
-    return load_legacy_orchestrator_config(config_file, overrides=overrides)
-
-
 def _validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if manifest.get("simulation_mode") != "cyclic_ingestion_simulation":
@@ -499,7 +487,6 @@ __all__ = [
     "APPROVED_CYCLE_STATES",
     "CyclicOrchestratorConfig",
     "build_orchestration_plan",
-    "load_cyclic_orchestrator_config",
     "run_cyclic_orchestrator_dry_run",
     "validate_cycle_contracts",
 ]

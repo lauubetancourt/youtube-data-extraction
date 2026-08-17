@@ -166,20 +166,6 @@ class CyclicDetectionConnectorConfig:
             )
 
 
-def load_cyclic_detection_connector_config(
-    config_file: str | Path | None,
-    *,
-    overrides: dict[str, Any] | None = None,
-) -> CyclicDetectionConnectorConfig:
-    """Compatibility shim; configuration I/O belongs to the entrypoint layer."""
-
-    from .entrypoints.cyclic_detection_connector import (
-        load_legacy_detection_connector_config,
-    )
-
-    return load_legacy_detection_connector_config(config_file, overrides=overrides)
-
-
 def _validate_inputs(
     *,
     adapter_manifest: dict[str, Any],
@@ -1099,6 +1085,5 @@ def run_cyclic_detection_connector(config: CyclicDetectionConnectorConfig) -> di
 
 __all__ = [
     "CyclicDetectionConnectorConfig",
-    "load_cyclic_detection_connector_config",
     "run_cyclic_detection_connector",
 ]

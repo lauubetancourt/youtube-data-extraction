@@ -10,8 +10,10 @@ import pandas as pd
 from youtube_pipeline.configuration import resolve_run_config, run_config_from_mapping
 from youtube_pipeline.cyclic_detection_connector import (
     CyclicDetectionConnectorConfig,
-    load_cyclic_detection_connector_config,
     run_cyclic_detection_connector,
+)
+from youtube_pipeline.entrypoints.cyclic_detection_connector import (
+    load_legacy_detection_connector_config,
 )
 
 
@@ -370,7 +372,7 @@ class CyclicDetectionConnectorTests(unittest.TestCase):
                 run,
                 base_dir=base,
             ).config.detection.connector
-            legacy_config = load_cyclic_detection_connector_config(
+            legacy_config = load_legacy_detection_connector_config(
                 None,
                 overrides={
                     "simulation_dir": legacy_dir,

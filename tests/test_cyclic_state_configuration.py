@@ -16,19 +16,19 @@ from youtube_pipeline.cyclic_ingestion import (
 )
 from youtube_pipeline.cyclic_orchestration import (
     CyclicOrchestratorConfig,
-    load_cyclic_orchestrator_config,
     run_cyclic_orchestrator_dry_run,
 )
 from youtube_pipeline.cyclic_stateful_adapter import (
     CyclicStatefulAdapterConfig,
-    load_cyclic_stateful_adapter_config,
     run_cyclic_stateful_adapter,
 )
 from youtube_pipeline.entrypoints.cyclic_ingestion import LEGACY_OUTPUT_DIR
 from youtube_pipeline.entrypoints.cyclic_orchestration import (
+    load_legacy_orchestrator_config,
     resolve_cyclic_orchestrator_config,
 )
 from youtube_pipeline.entrypoints.cyclic_stateful_adapter import (
+    load_legacy_stateful_adapter_config,
     resolve_cyclic_stateful_adapter_config,
 )
 
@@ -93,11 +93,11 @@ class CyclicStateConfigurationTests(unittest.TestCase):
             resolved = resolve_run_config(run, base_dir=base).config
             common_orchestration = resolved.simulation.orchestration
             common_adapter = resolved.simulation.stateful_adapter
-            legacy_orchestration = load_cyclic_orchestrator_config(
+            legacy_orchestration = load_legacy_orchestrator_config(
                 None,
                 overrides={"simulation_dir": legacy_dir},
             )
-            legacy_adapter = load_cyclic_stateful_adapter_config(
+            legacy_adapter = load_legacy_stateful_adapter_config(
                 None,
                 overrides={"simulation_dir": legacy_dir},
             )
@@ -158,11 +158,11 @@ class CyclicStateConfigurationTests(unittest.TestCase):
 
     def test_legacy_defaults_and_current_profile_resolve_outside_domain(self) -> None:
         self.assertEqual(
-            load_cyclic_orchestrator_config(None).simulation_dir,
+            load_legacy_orchestrator_config(None).simulation_dir,
             LEGACY_OUTPUT_DIR,
         )
         self.assertEqual(
-            load_cyclic_stateful_adapter_config(None).simulation_dir,
+            load_legacy_stateful_adapter_config(None).simulation_dir,
             LEGACY_OUTPUT_DIR,
         )
 

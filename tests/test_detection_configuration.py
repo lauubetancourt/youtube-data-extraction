@@ -8,13 +8,12 @@ import youtube_pipeline.cyclic_detection_connector as connector_module
 import youtube_pipeline.daily_frequency_baseline as baseline_module
 from youtube_pipeline.cyclic_detection_connector import (
     CyclicDetectionConnectorConfig,
-    load_cyclic_detection_connector_config,
 )
 from youtube_pipeline.daily_frequency_baseline import (
     DailyFrequencyBaselineConfig,
-    load_daily_frequency_baseline_config,
 )
 from youtube_pipeline.entrypoints.cyclic_detection_connector import (
+    load_legacy_detection_connector_config,
     resolve_cyclic_detection_connector_config,
 )
 from youtube_pipeline.entrypoints.cyclic_ingestion import (
@@ -22,6 +21,7 @@ from youtube_pipeline.entrypoints.cyclic_ingestion import (
     LEGACY_OUTPUT_DIR,
 )
 from youtube_pipeline.entrypoints.daily_frequency_baseline import (
+    load_legacy_baseline_config,
     resolve_daily_frequency_baseline_config,
 )
 
@@ -41,8 +41,8 @@ class DetectionConfigurationTests(unittest.TestCase):
                 self.assertNotIn("import argparse", source)
 
     def test_legacy_defaults_remain_only_in_entrypoint_layer(self) -> None:
-        connector = load_cyclic_detection_connector_config(None)
-        baseline = load_daily_frequency_baseline_config(None)
+        connector = load_legacy_detection_connector_config(None)
+        baseline = load_legacy_baseline_config(None)
 
         self.assertEqual(connector.simulation_dir, LEGACY_OUTPUT_DIR)
         self.assertEqual(connector.canonical_dataset_path, LEGACY_INPUT_PATH)

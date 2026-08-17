@@ -13,11 +13,11 @@ from youtube_pipeline.configuration import resolve_run_config, run_config_from_m
 from youtube_pipeline.cyclic_ingestion import (
     CyclicIngestionConfig,
     build_cyclic_ingestion_dry_run,
-    load_cyclic_ingestion_config,
 )
 from youtube_pipeline.entrypoints.cyclic_ingestion import (
     LEGACY_INPUT_PATH,
     LEGACY_OUTPUT_DIR,
+    load_legacy_cyclic_ingestion_config,
     resolve_cyclic_ingestion_config,
 )
 
@@ -70,7 +70,7 @@ class CyclicIngestionConfigurationTests(unittest.TestCase):
 
             summary = build_cyclic_ingestion_dry_run(component)
             legacy_output = base / "outputs/legacy"
-            legacy_component = load_cyclic_ingestion_config(
+            legacy_component = load_legacy_cyclic_ingestion_config(
                 None,
                 overrides={
                     "input_path": dataset,
@@ -111,7 +111,7 @@ class CyclicIngestionConfigurationTests(unittest.TestCase):
             )
 
     def test_legacy_loader_keeps_old_defaults_outside_domain(self) -> None:
-        config = load_cyclic_ingestion_config(None)
+        config = load_legacy_cyclic_ingestion_config(None)
 
         self.assertEqual(config.input_path, LEGACY_INPUT_PATH)
         self.assertEqual(config.output_dir, LEGACY_OUTPUT_DIR)

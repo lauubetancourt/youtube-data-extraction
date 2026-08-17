@@ -125,3 +125,17 @@ módulos de dominio RAG diario. Sus sucesores versionados siguen siendo:
 Los scripts continúan importando directamente los mismos entrypoints. No se
 modificaron los loaders, los contratos de sidecars, los manifests, el dry-run
 ni las fórmulas de las identidades de etapa.
+
+## Resultado de Fase 8D
+
+Se retiraron los seis loaders-fachada alojados en módulos cíclicos de dominio:
+`load_cyclic_ingestion_config`, `load_cyclic_orchestrator_config`,
+`load_cyclic_stateful_adapter_config`,
+`load_cyclic_detection_connector_config`,
+`load_cyclic_daily_signal_config` y
+`load_daily_frequency_baseline_config`.
+
+La compatibilidad de configuración permanece en la capa que le corresponde:
+los seis `load_legacy_*` y sus resolvers de `youtube_pipeline.entrypoints`.
+Las pruebas de equivalencia apuntan ahora a esos contratos conservados, sin
+cambiar datos de entrada, expectativas, defaults ni resultados.

@@ -163,18 +163,6 @@ class CyclicDailySignalConfig:
             )
 
 
-def load_cyclic_daily_signal_config(
-    config_file: str | Path | None,
-    *,
-    overrides: dict[str, Any] | None = None,
-) -> CyclicDailySignalConfig:
-    """Compatibility shim; configuration I/O belongs to the entrypoint layer."""
-
-    from .entrypoints.cyclic_daily_signals import load_legacy_daily_signal_config
-
-    return load_legacy_daily_signal_config(config_file, overrides=overrides)
-
-
 def _load_and_validate_gold(config: CyclicDailySignalConfig) -> tuple[pd.DataFrame, dict[str, Any]]:
     gold_path = Path(config.canonical_dataset_path)
     gold = _read_table(gold_path).copy()
@@ -735,6 +723,5 @@ def run_cyclic_daily_signals(config: CyclicDailySignalConfig) -> dict[str, Any]:
 
 __all__ = [
     "CyclicDailySignalConfig",
-    "load_cyclic_daily_signal_config",
     "run_cyclic_daily_signals",
 ]

@@ -12,10 +12,10 @@ import youtube_pipeline.cyclic_daily_signals as daily_signals_module
 from youtube_pipeline.configuration import resolve_run_config, run_config_from_mapping
 from youtube_pipeline.cyclic_daily_signals import (
     CyclicDailySignalConfig,
-    load_cyclic_daily_signal_config,
     run_cyclic_daily_signals,
 )
 from youtube_pipeline.entrypoints.cyclic_daily_signals import (
+    load_legacy_daily_signal_config,
     resolve_cyclic_daily_signal_config,
 )
 from youtube_pipeline.entrypoints.cyclic_ingestion import (
@@ -325,7 +325,7 @@ class CyclicDailySignalsTests(unittest.TestCase):
                 }
             )
             common_config = resolve_run_config(run, base_dir=base).config.signals.daily
-            legacy_config = load_cyclic_daily_signal_config(
+            legacy_config = load_legacy_daily_signal_config(
                 None,
                 overrides={
                     "simulation_dir": legacy_dir,
@@ -369,7 +369,7 @@ class CyclicDailySignalsTests(unittest.TestCase):
         self.assertNotIn(LEGACY_OUTPUT_DIR, source)
         self.assertNotIn("import argparse", source)
 
-        legacy = load_cyclic_daily_signal_config(None)
+        legacy = load_legacy_daily_signal_config(None)
         self.assertEqual(legacy.simulation_dir, LEGACY_OUTPUT_DIR)
         self.assertEqual(legacy.canonical_dataset_path, LEGACY_INPUT_PATH)
 

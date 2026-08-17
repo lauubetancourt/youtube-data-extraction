@@ -114,18 +114,6 @@ class CyclicStatefulAdapterConfig:
             )
 
 
-def load_cyclic_stateful_adapter_config(
-    config_file: str | Path | None,
-    *,
-    overrides: dict[str, Any] | None = None,
-) -> CyclicStatefulAdapterConfig:
-    """Compatibility shim; configuration I/O belongs to the entrypoint layer."""
-
-    from .entrypoints.cyclic_stateful_adapter import load_legacy_stateful_adapter_config
-
-    return load_legacy_stateful_adapter_config(config_file, overrides=overrides)
-
-
 def _validate_input_artifacts(
     *,
     simulation_manifest: dict[str, Any],
@@ -686,6 +674,5 @@ def run_cyclic_stateful_adapter(config: CyclicStatefulAdapterConfig) -> dict[str
 
 __all__ = [
     "CyclicStatefulAdapterConfig",
-    "load_cyclic_stateful_adapter_config",
     "run_cyclic_stateful_adapter",
 ]

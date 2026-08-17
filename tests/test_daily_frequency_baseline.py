@@ -10,8 +10,10 @@ from youtube_pipeline.daily_frequency_baseline import (
     CONFIGURED_COOLDOWN_POLICY,
     DEFAULT_COOLDOWN_POLICY,
     DailyFrequencyBaselineConfig,
-    load_daily_frequency_baseline_config,
     run_daily_frequency_baseline,
+)
+from youtube_pipeline.entrypoints.daily_frequency_baseline import (
+    load_legacy_baseline_config,
 )
 
 
@@ -278,7 +280,7 @@ class DailyFrequencyBaselineTests(unittest.TestCase):
                 run,
                 base_dir=base,
             ).config.detection.daily_frequency
-            legacy_config = load_daily_frequency_baseline_config(
+            legacy_config = load_legacy_baseline_config(
                 None,
                 overrides={"simulation_dir": legacy_dir, **parameters},
             )

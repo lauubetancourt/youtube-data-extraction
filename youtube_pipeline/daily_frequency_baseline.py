@@ -173,18 +173,6 @@ class DailyFrequencyBaselineConfig:
             )
 
 
-def load_daily_frequency_baseline_config(
-    config_file: str | Path | None,
-    *,
-    overrides: dict[str, Any] | None = None,
-) -> DailyFrequencyBaselineConfig:
-    """Compatibility shim; configuration I/O belongs to the entrypoint layer."""
-
-    from .entrypoints.daily_frequency_baseline import load_legacy_baseline_config
-
-    return load_legacy_baseline_config(config_file, overrides=overrides)
-
-
 def _validate_inputs(
     *,
     config: DailyFrequencyBaselineConfig,
@@ -552,6 +540,5 @@ __all__ = [
     "DEFAULT_COOLDOWN_POLICY",
     "DETECTOR_NAME",
     "DailyFrequencyBaselineConfig",
-    "load_daily_frequency_baseline_config",
     "run_daily_frequency_baseline",
 ]
