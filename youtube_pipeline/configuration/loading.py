@@ -20,6 +20,13 @@ from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
 from youtube_pipeline.detectors import XiaoEMAConfig
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
+from youtube_pipeline.rag_consumer import RagConsumerConfig
+from youtube_pipeline.rag_evidence import RagEvidenceBuildConfig
+from youtube_pipeline.rag_generation_g1 import RagG1Config
+from youtube_pipeline.rag_generation_g2 import RagG2Config
+from youtube_pipeline.rag_generation_g2_hierarchical import RagG2HierarchicalConfig
+from youtube_pipeline.rag_sidecars import RagSidecarBuildConfig
+from youtube_pipeline.rag_validation import RagValidationPrepareConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
 from .models import (
@@ -46,7 +53,18 @@ _DATA_FIELDS = {"youtube_api", "local_files", "prepared_dataset", "cleaning"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter", "replay"}
 _SIGNALS_FIELDS = {"daily"}
 _DETECTION_FIELDS = {"connector", "xiao_ema", "daily_frequency"}
-_RAG_FIELDS = {"daily_sidecars", "daily_consumer", "daily_context_selection"}
+_RAG_FIELDS = {
+    "evidence",
+    "sidecars",
+    "consumer",
+    "validation",
+    "g1",
+    "g2",
+    "g2_hierarchical",
+    "daily_sidecars",
+    "daily_consumer",
+    "daily_context_selection",
+}
 
 
 def _require_object(value: Any, location: str) -> dict[str, Any]:
@@ -306,13 +324,28 @@ def _build_rag(payload: Any) -> RagConfig:
         if field_name not in section:
             return None
         location = f"rag.{field_name}"
+        component_payload = _require_object(section[field_name], location)
+        _reject_unknown_keys(
+            component_payload,
+            {field.name for field in fields(config_type)},
+            location,
+        )
         return _build_component(
             config_type,
-            section[field_name],
+            component_payload,
             location,
         )
 
     return RagConfig(
+        evidence=build_component("evidence", RagEvidenceBuildConfig),
+        sidecars=build_component("sidecars", RagSidecarBuildConfig),
+        consumer=build_component("consumer", RagConsumerConfig),
+        validation=build_component("validation", RagValidationPrepareConfig),
+        g1=build_component("g1", RagG1Config),
+        g2=build_component("g2", RagG2Config),
+        g2_hierarchical=build_component(
+            "g2_hierarchical", RagG2HierarchicalConfig
+        ),
         daily_sidecars=build_component(
             "daily_sidecars",
             DailyRagSidecarBuildConfig,

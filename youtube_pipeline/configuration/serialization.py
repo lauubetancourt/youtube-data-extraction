@@ -20,6 +20,13 @@ from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
+from youtube_pipeline.rag_consumer import RagConsumerConfig
+from youtube_pipeline.rag_evidence import RagEvidenceBuildConfig
+from youtube_pipeline.rag_generation_g1 import RagG1Config
+from youtube_pipeline.rag_generation_g2 import RagG2Config
+from youtube_pipeline.rag_generation_g2_hierarchical import RagG2HierarchicalConfig
+from youtube_pipeline.rag_sidecars import RagSidecarBuildConfig
+from youtube_pipeline.rag_validation import RagValidationPrepareConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
 from .models import DataConfig, DetectionConfig, RunConfig, SimulationConfig
@@ -58,6 +65,29 @@ _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     DailyContextSelectionConfig: frozenset(
         {"consumer_dir", "sidecars_dir", "output_dir"}
     ),
+    RagEvidenceBuildConfig: frozenset(
+        {
+            "trigger_comment_map_path",
+            "output_dir",
+            "comments_path",
+            "snapshots_path",
+        }
+    ),
+    RagSidecarBuildConfig: frozenset(
+        {
+            "trigger_comment_map_path",
+            "output_dir",
+            "comments_path",
+            "snapshots_path",
+        }
+    ),
+    RagConsumerConfig: frozenset({"sidecars_dir", "output_dir"}),
+    RagValidationPrepareConfig: frozenset(
+        {"evidence_packages_path", "output_dir"}
+    ),
+    RagG1Config: frozenset({"consumer_dir", "output_dir"}),
+    RagG2Config: frozenset({"consumer_dir", "g1_dir", "output_dir"}),
+    RagG2HierarchicalConfig: frozenset({"consumer_dir", "output_dir"}),
 }
 
 _OMITTED_NONE_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
@@ -74,7 +104,12 @@ def _normalized_logical_path(value: str | Path, path_base: Path | None) -> str:
         try:
             path = path.relative_to(path_base)
         except ValueError:
-            pass
+            try:
+                path = path.resolve(strict=False).relative_to(
+                    path_base.resolve(strict=False)
+                )
+            except ValueError:
+                pass
     normalized = os.path.normpath(str(path))
     return Path(normalized).as_posix()
 

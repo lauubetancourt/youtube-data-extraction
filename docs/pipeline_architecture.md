@@ -99,6 +99,9 @@ See `docs/regression_verification.md` for the latest regression evidence.
 - `rag_verification.py` owns read-only consistency checks for RAG evidence and
   validation-preparation artifacts. It does not alter artifacts or decide
   whether an event is true.
+- `entrypoints/non_daily_rag.py` resolves the legacy and common configuration
+  shapes for evidence, sidecars, consumer, validation, G-1 and G-2. Each RAG
+  component still receives only its existing stage-specific dataclass.
 
 ## Known Architectural Gaps
 

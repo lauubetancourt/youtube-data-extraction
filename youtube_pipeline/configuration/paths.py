@@ -15,6 +15,13 @@ from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
+from youtube_pipeline.rag_consumer import RagConsumerConfig
+from youtube_pipeline.rag_evidence import RagEvidenceBuildConfig
+from youtube_pipeline.rag_generation_g1 import RagG1Config
+from youtube_pipeline.rag_generation_g2 import RagG2Config
+from youtube_pipeline.rag_generation_g2_hierarchical import RagG2HierarchicalConfig
+from youtube_pipeline.rag_sidecars import RagSidecarBuildConfig
+from youtube_pipeline.rag_validation import RagValidationPrepareConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
 from .models import (
@@ -189,6 +196,96 @@ def _resolve_daily_rag_sidecars(
     )
 
 
+def _resolve_rag_evidence(
+    config: RagEvidenceBuildConfig,
+    base_dir: Path,
+) -> RagEvidenceBuildConfig:
+    return replace(
+        config,
+        trigger_comment_map_path=str(
+            _resolve_path(config.trigger_comment_map_path, base_dir)
+        ),
+        output_dir=str(_resolve_path(config.output_dir, base_dir)),
+        comments_path=str(_resolve_path(config.comments_path, base_dir)),
+        snapshots_path=(
+            None
+            if config.snapshots_path is None
+            else str(_resolve_path(config.snapshots_path, base_dir))
+        ),
+    )
+
+
+def _resolve_rag_sidecars(
+    config: RagSidecarBuildConfig,
+    base_dir: Path,
+) -> RagSidecarBuildConfig:
+    return replace(
+        config,
+        trigger_comment_map_path=str(
+            _resolve_path(config.trigger_comment_map_path, base_dir)
+        ),
+        output_dir=str(_resolve_path(config.output_dir, base_dir)),
+        comments_path=str(_resolve_path(config.comments_path, base_dir)),
+        snapshots_path=(
+            None
+            if config.snapshots_path is None
+            else str(_resolve_path(config.snapshots_path, base_dir))
+        ),
+    )
+
+
+def _resolve_rag_consumer(
+    config: RagConsumerConfig,
+    base_dir: Path,
+) -> RagConsumerConfig:
+    return replace(
+        config,
+        sidecars_dir=str(_resolve_path(config.sidecars_dir, base_dir)),
+        output_dir=str(_resolve_path(config.output_dir, base_dir)),
+    )
+
+
+def _resolve_rag_validation(
+    config: RagValidationPrepareConfig,
+    base_dir: Path,
+) -> RagValidationPrepareConfig:
+    return replace(
+        config,
+        evidence_packages_path=str(
+            _resolve_path(config.evidence_packages_path, base_dir)
+        ),
+        output_dir=str(_resolve_path(config.output_dir, base_dir)),
+    )
+
+
+def _resolve_rag_g1(config: RagG1Config, base_dir: Path) -> RagG1Config:
+    return replace(
+        config,
+        consumer_dir=str(_resolve_path(config.consumer_dir, base_dir)),
+        output_dir=str(_resolve_path(config.output_dir, base_dir)),
+    )
+
+
+def _resolve_rag_g2(config: RagG2Config, base_dir: Path) -> RagG2Config:
+    return replace(
+        config,
+        consumer_dir=str(_resolve_path(config.consumer_dir, base_dir)),
+        g1_dir=str(_resolve_path(config.g1_dir, base_dir)),
+        output_dir=str(_resolve_path(config.output_dir, base_dir)),
+    )
+
+
+def _resolve_rag_g2_hierarchical(
+    config: RagG2HierarchicalConfig,
+    base_dir: Path,
+) -> RagG2HierarchicalConfig:
+    return replace(
+        config,
+        consumer_dir=str(_resolve_path(config.consumer_dir, base_dir)),
+        output_dir=str(_resolve_path(config.output_dir, base_dir)),
+    )
+
+
 def _resolve_daily_rag_consumer(
     config: DailyRagConsumerConfig,
     base_dir: Path,
@@ -309,6 +406,41 @@ def resolve_run_config_paths(
     rag = config.rag
     if rag is not None:
         rag = RagConfig(
+            evidence=(
+                _resolve_rag_evidence(rag.evidence, base)
+                if rag.evidence is not None
+                else None
+            ),
+            sidecars=(
+                _resolve_rag_sidecars(rag.sidecars, base)
+                if rag.sidecars is not None
+                else None
+            ),
+            consumer=(
+                _resolve_rag_consumer(rag.consumer, base)
+                if rag.consumer is not None
+                else None
+            ),
+            validation=(
+                _resolve_rag_validation(rag.validation, base)
+                if rag.validation is not None
+                else None
+            ),
+            g1=(
+                _resolve_rag_g1(rag.g1, base)
+                if rag.g1 is not None
+                else None
+            ),
+            g2=(
+                _resolve_rag_g2(rag.g2, base)
+                if rag.g2 is not None
+                else None
+            ),
+            g2_hierarchical=(
+                _resolve_rag_g2_hierarchical(rag.g2_hierarchical, base)
+                if rag.g2_hierarchical is not None
+                else None
+            ),
             daily_sidecars=(
                 _resolve_daily_rag_sidecars(rag.daily_sidecars, base)
                 if rag.daily_sidecars is not None

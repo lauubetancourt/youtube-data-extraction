@@ -39,7 +39,7 @@ retirar el mecanismo.
 | Orquestador histórico general | `youtube_pipeline/run_pipeline.py` | README, documentación arquitectónica y pruebas | Sigue siendo la única CLI conjunta para almacenamiento local, limpieza y replay, pero desde Fase 9C traduce sus argumentos hacia el resolver común. | Reevaluar su retiro solo si existe un sucesor que preserve todos los subcomandos; Fase 9C no lo elimina. |
 | Adaptadores de almacenamiento, limpieza y replay | `load_legacy_local_files_config`, `load_legacy_cleaning_config`, `load_legacy_prepared_replay_configs` | pruebas focalizadas y contratos públicos conservados | Ya no son usados por `run_pipeline.py`, pero retirar esos contratos no forma parte de Fase 9C. | Comprobar por separado consumidores externos y aprobar su retiro en la limpieza final de compatibilidad. |
 | Compatibilidad de adquisición | `load_legacy_youtube_extraction_config` y `resolve_youtube_extraction_config` | `run_pipeline.py`, entrypoint de adquisición y pruebas | Mantiene el formato anterior y la ruta nueva; ambas continúan cubiertas. | Retirar solo cuando el formato anterior deje de estar soportado de manera deliberada. |
-| RAG no diario | loaders y CLI de evidencia, sidecars, consumer, G-1, G-2, G-2 jerárquico, validación y PoC | nueve scripts versionados, imports entre G-1/G-2 y pruebas | Estos flujos no fueron reemplazados por el runner RAG diario; algunos siguen siendo la única interfaz de su función. | Migración independiente con protección de prompts, contratos, identidades y dry-run. |
+| RAG no diario | resolver común para evidencia, sidecars, consumer, validación, G-1, G-2 y G-2 jerárquico; loaders y CLI legacy preservados | siete scripts versionados, imports entre G-1/G-2 y pruebas | Desde Fase 9D los scripts activos delegan en `RunConfig`, pero las interfaces legacy siguen siendo contratos compatibles. | Reevaluar loaders y argumentos solo en la limpieza final; PoC y verificación mantienen su alcance independiente. |
 
 ## Defaults y paths de compatibilidad
 
@@ -53,8 +53,8 @@ Permanecen dependencias separadas fuera del vertical migrado:
 - los entrypoints de compatibilidad de almacenamiento, limpieza y replay
   conservan los defaults para CSV legacy, Silver y Gold; `run_pipeline.py` ya
   no los vuelve a definir;
-- `rag_evidence.py` y `rag_sidecars.py` conservan Gold como default del RAG no
-  diario;
+- `RagEvidenceBuildConfig` y `RagSidecarBuildConfig` conservan Gold como default
+  de compatibilidad del RAG no diario; los scripts ya no vuelven a definirlo;
 - los entrypoints diarios RAG conservan `media/log_3` como default del formato
   anterior.
 
@@ -155,3 +155,28 @@ Los seis nombres `DEFAULT_TRIGGER_*` continúan exportados porque el script
 retrospectivo los consume, pero ahora son alias derivados de `XiaoEMAConfig` y
 no una autoridad independiente. No se retiraron subcomandos, argumentos,
 loaders públicos ni wrappers.
+
+## Resultado de Fase 9D
+
+### Autoridad de parámetros RAG no diario
+
+| Parámetro o grupo | Ubicación anterior | Nueva autoridad | Riesgo controlado |
+|---|---|---|---|
+| Paths de entrada y salida | dataclass y loader propio de cada etapa | la misma dataclass compuesta en `RagConfig` y resuelta por `entrypoints/non_daily_rag.py` | cambio accidental de fuente o destino |
+| Identidad de evidencia, sidecars, consumer y validación | fórmula propia de cada etapa | la misma fórmula, aplicada antes de resolver paths y almacenada en la subconfiguración | cambio de IDs y linaje |
+| Modelo, proveedor y temperatura G-1/G-2 | `RagG1Config`, `RagG2Config`, `RagG2HierarchicalConfig` | las mismas dataclasses, sin copia en `RunConfig` ni scripts | cambio metodológico |
+| Batching, tokens, retries y timeouts | dataclass específica de G-1/G-2 | la misma dataclass específica | cambio de costo o estrategia |
+| Parámetros de Serper y ventana de búsqueda | configs G-2 | las mismas configs G-2 | cambio de recuperación externa |
+| Prompts, queries, labels y esquemas | funciones y constantes de los módulos generativos | sin traslado; permanecen en los módulos | cambio de resultados o contratos |
+| `OPENAI_API_KEY`, `SERPER_API_KEY` | entorno/`.env` | entorno/infraestructura, fuera de `RunConfig` y `config_hash` | exposición de secretos |
+
+Los siete scripts activos de RAG no diario conservan argumentos y formatos
+legacy, pero ahora traducen esos inputs mediante un solo resolver. Los loaders
+anteriores permanecen disponibles para compatibilidad y ya no son la ruta de
+configuración de esos scripts. `RunConfig.identity.run_id` continúa siendo la
+identidad global; no sustituye las identidades derivadas por cada etapa.
+
+No se modificaron prompts, modelos, temperaturas, queries, proveedores,
+contratos de artefactos, labels, estrategias, retries ni timeouts. El PoC y el
+verificador de artefactos no formaban parte del alcance autorizado de esta
+fase.

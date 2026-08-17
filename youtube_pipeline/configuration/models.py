@@ -16,6 +16,13 @@ from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
 from youtube_pipeline.detectors import XiaoEMAConfig
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
+from youtube_pipeline.rag_consumer import RagConsumerConfig
+from youtube_pipeline.rag_evidence import RagEvidenceBuildConfig
+from youtube_pipeline.rag_generation_g1 import RagG1Config
+from youtube_pipeline.rag_generation_g2 import RagG2Config
+from youtube_pipeline.rag_generation_g2_hierarchical import RagG2HierarchicalConfig
+from youtube_pipeline.rag_sidecars import RagSidecarBuildConfig
+from youtube_pipeline.rag_validation import RagValidationPrepareConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
 
@@ -208,11 +215,29 @@ class DetectionConfig:
 class RagConfig:
     """Composition of implemented RAG-stage configurations."""
 
+    evidence: RagEvidenceBuildConfig | None = None
+    sidecars: RagSidecarBuildConfig | None = None
+    consumer: RagConsumerConfig | None = None
+    validation: RagValidationPrepareConfig | None = None
+    g1: RagG1Config | None = None
+    g2: RagG2Config | None = None
+    g2_hierarchical: RagG2HierarchicalConfig | None = None
     daily_sidecars: DailyRagSidecarBuildConfig | None = None
     daily_consumer: DailyRagConsumerConfig | None = None
     daily_context_selection: DailyContextSelectionConfig | None = None
 
     def __post_init__(self) -> None:
+        _require_optional_instance("evidence", self.evidence, RagEvidenceBuildConfig)
+        _require_optional_instance("sidecars", self.sidecars, RagSidecarBuildConfig)
+        _require_optional_instance("consumer", self.consumer, RagConsumerConfig)
+        _require_optional_instance(
+            "validation", self.validation, RagValidationPrepareConfig
+        )
+        _require_optional_instance("g1", self.g1, RagG1Config)
+        _require_optional_instance("g2", self.g2, RagG2Config)
+        _require_optional_instance(
+            "g2_hierarchical", self.g2_hierarchical, RagG2HierarchicalConfig
+        )
         _require_optional_instance(
             "daily_sidecars",
             self.daily_sidecars,
@@ -231,6 +256,13 @@ class RagConfig:
         if all(
             config is None
             for config in (
+                self.evidence,
+                self.sidecars,
+                self.consumer,
+                self.validation,
+                self.g1,
+                self.g2,
+                self.g2_hierarchical,
                 self.daily_sidecars,
                 self.daily_consumer,
                 self.daily_context_selection,
