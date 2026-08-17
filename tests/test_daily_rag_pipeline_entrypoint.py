@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import subprocess
@@ -96,6 +97,13 @@ class DailyRagPipelineEntrypointTests(unittest.TestCase):
             base = Path(tmp)
             config_path = _write_fixture(base)
             stdout = io.StringIO()
+            relocated = base / "relocated"
+            relocated.mkdir()
+            existing_cyclic_manifest = relocated / "run_manifest.json"
+            existing_cyclic_manifest.write_text(
+                json.dumps({"owner": "cyclic"}),
+                encoding="utf-8",
+            )
 
             with contextlib.redirect_stdout(stdout):
                 main(
@@ -115,11 +123,14 @@ class DailyRagPipelineEntrypointTests(unittest.TestCase):
             sidecar_id = summary["stages"]["sidecars"]["run_id"]
             consumer_id = summary["stages"]["consumer"]["run_id"]
             selection_id = summary["stages"]["context_selection"]["run_id"]
-            relocated = base / "relocated"
 
             self.assertEqual(summary["run_id"], "global_cli_run")
             self.assertEqual(summary["execution_mode"], "dry_run")
             self.assertEqual(len(summary["config_hash"]), 64)
+            self.assertEqual(
+                summary["run_manifest"],
+                str(relocated.resolve() / "daily_rag_run_manifest.json"),
+            )
             self.assertTrue(sidecar_id.startswith("drun_"))
             self.assertTrue(consumer_id.startswith("dragconsumer_"))
             self.assertTrue(selection_id.startswith("dragselect_"))
@@ -143,6 +154,70 @@ class DailyRagPipelineEntrypointTests(unittest.TestCase):
                     / "daily_rag_context_selection"
                     / "daily_context_selection_manifest.json"
                 ).is_file()
+            )
+            sidecar_manifest = json.loads(
+                (
+                    relocated
+                    / "daily_rag_sidecars"
+                    / "daily_rag_sidecars_manifest.json"
+                ).read_text(encoding="utf-8")
+            )
+            consumer_manifest = json.loads(
+                (
+                    relocated
+                    / "daily_rag_consumer"
+                    / "daily_rag_consumer_manifest.json"
+                ).read_text(encoding="utf-8")
+            )
+            selection_manifest = json.loads(
+                (
+                    relocated
+                    / "daily_rag_context_selection"
+                    / "daily_context_selection_manifest.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(sidecar_manifest["run_id"], sidecar_id)
+            self.assertEqual(consumer_manifest["run_id"], consumer_id)
+            self.assertEqual(selection_manifest["run_id"], selection_id)
+
+            run_manifest = json.loads(
+                (relocated / "daily_rag_run_manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(run_manifest["schema_version"], "1")
+            self.assertEqual(run_manifest["run_id"], "global_cli_run")
+            self.assertEqual(run_manifest["status"], "completed")
+            self.assertEqual(run_manifest["execution_mode"], "dry_run")
+            self.assertEqual(run_manifest["config_hash"], summary["config_hash"])
+            self.assertEqual(
+                run_manifest["completed_stages"],
+                ["sidecars", "consumer", "context_selection"],
+            )
+            resolved_config = run_manifest["resolved_config"]
+            self.assertEqual(
+                resolved_config["identity"]["run_id"],
+                "global_cli_run",
+            )
+            self.assertEqual(
+                resolved_config["rag"]["daily_sidecars"]["output_dir"],
+                "relocated/daily_rag_sidecars",
+            )
+            canonical = json.dumps(
+                resolved_config,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            self.assertEqual(
+                hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+                run_manifest["config_hash"],
+            )
+            self.assertNotIn(str(base.resolve()), json.dumps(run_manifest))
+            self.assertEqual(
+                json.loads(existing_cyclic_manifest.read_text(encoding="utf-8")),
+                {"owner": "cyclic"},
             )
             self.assertFalse((base / "profile_outputs").exists())
 

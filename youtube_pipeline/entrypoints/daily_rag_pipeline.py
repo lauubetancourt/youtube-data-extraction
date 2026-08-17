@@ -26,6 +26,10 @@ from youtube_pipeline.entrypoints.common_cli import (
     CommonRunCliOptions,
     parse_common_run_args,
 )
+from youtube_pipeline.run_manifest import write_run_manifest
+
+
+DAILY_RAG_RUN_MANIFEST_FILE = "daily_rag_run_manifest.json"
 
 
 def _resolved_path(path: str | Path, *, base_dir: Path) -> Path:
@@ -199,10 +203,18 @@ def run_daily_rag_pipeline(resolved: ResolvedRunConfig) -> dict[str, Any]:
             config.rag.daily_context_selection
         ),
     }
+    run_manifest = write_run_manifest(
+        resolved,
+        output_dir=Path(config.rag.daily_sidecars.output_dir).parent,
+        execution_mode="dry_run",
+        completed_stages=tuple(stages),
+        filename=DAILY_RAG_RUN_MANIFEST_FILE,
+    )
     return {
         "run_id": config.identity.run_id,
         "config_hash": resolved.config_hash,
         "execution_mode": "dry_run",
+        "run_manifest": str(run_manifest),
         "stages": stages,
     }
 
@@ -233,6 +245,7 @@ def main(
 
 
 __all__ = [
+    "DAILY_RAG_RUN_MANIFEST_FILE",
     "main",
     "resolve_daily_rag_pipeline_run",
     "run_daily_rag_pipeline",

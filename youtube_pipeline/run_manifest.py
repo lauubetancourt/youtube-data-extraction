@@ -49,10 +49,15 @@ def write_run_manifest(
     output_dir: str | Path,
     execution_mode: str,
     completed_stages: Sequence[str],
+    filename: str = RUN_MANIFEST_FILE,
 ) -> Path:
     """Persist the single execution-level configuration manifest."""
 
-    output = Path(output_dir) / RUN_MANIFEST_FILE
+    if not isinstance(filename, str) or not filename.strip():
+        raise ValueError("filename must not be empty.")
+    if Path(filename).name != filename:
+        raise ValueError("filename must be a file name without directories.")
+    output = Path(output_dir) / filename
     output.parent.mkdir(parents=True, exist_ok=True)
     manifest = build_run_manifest(
         resolved,
