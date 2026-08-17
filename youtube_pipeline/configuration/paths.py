@@ -32,7 +32,10 @@ def _resolve_path(value: str | Path, base_dir: Path) -> Path:
     path = Path(value).expanduser()
     if not path.is_absolute():
         path = base_dir / path
-    return path.resolve(strict=False)
+    # Make paths absolute without dereferencing symlinks.  Legacy entrypoints
+    # preserve the path spelling supplied by their callers (notably /var on
+    # macOS), and canonicalizing it to /private/var changes their I/O contract.
+    return path.absolute()
 
 
 def _resolve_optional_path(

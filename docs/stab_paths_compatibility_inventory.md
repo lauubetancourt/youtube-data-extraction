@@ -36,8 +36,8 @@ retirar el mecanismo.
 | `python -m` de etapas cíclicas | `main()` en seis módulos de dominio | superficie de compatibilidad declarada por cada módulo; sin referencias internas adicionales | No hay consumidor versionado, pero retirar cambia una interfaz ejecutable pública. | Decisión explícita de dejar de soportar la invocación por módulo y prueba de los scripts sucesores. |
 | Tres wrappers diarios RAG por etapa | `build_daily_rag_sidecars.py`, `build_daily_rag_consumer_payloads.py`, `build_daily_rag_context_selection.py` y sus entrypoints | scripts versionados y pruebas específicas de configuración | Conservan ejecución local por etapa sin llamadas externas y las tres identidades históricas de etapa. | Demostrar que el runner diario integrado cubre el uso diagnóstico requerido sin cambiar identidades, contratos ni dry-run. |
 | `python -m` de etapas diarias RAG | `main()` en `daily_rag_sidecars`, `daily_rag_consumer` y `daily_rag_context_selection` | superficie de compatibilidad declarada; sin referencias internas adicionales | Su retiro cambia una interfaz ejecutable aunque los scripts apunten ya a los entrypoints. | Decisión explícita de retirar esa interfaz y mantener probados los scripts sucesores. |
-| Orquestador histórico general | `youtube_pipeline/run_pipeline.py` | README, documentación arquitectónica, pruebas y uso directo de adaptadores de preparación | Sigue siendo la única CLI conjunta para almacenamiento local, limpieza y replay; además conserva extracción y configuración legacy del detector. | Migrar primero esas capacidades a entrypoints resueltos equivalentes y comparar sus resultados. |
-| Adaptadores de almacenamiento, limpieza y replay | `load_legacy_local_files_config`, `load_legacy_cleaning_config`, `load_legacy_prepared_replay_configs` | llamadas directas desde `run_pipeline.py` y pruebas focalizadas | Tienen consumidores productivos locales comprobados. | Eliminar el consumidor o hacerlo usar únicamente el resolver común antes de retirar estos adaptadores. |
+| Orquestador histórico general | `youtube_pipeline/run_pipeline.py` | README, documentación arquitectónica y pruebas | Sigue siendo la única CLI conjunta para almacenamiento local, limpieza y replay, pero desde Fase 9C traduce sus argumentos hacia el resolver común. | Reevaluar su retiro solo si existe un sucesor que preserve todos los subcomandos; Fase 9C no lo elimina. |
+| Adaptadores de almacenamiento, limpieza y replay | `load_legacy_local_files_config`, `load_legacy_cleaning_config`, `load_legacy_prepared_replay_configs` | pruebas focalizadas y contratos públicos conservados | Ya no son usados por `run_pipeline.py`, pero retirar esos contratos no forma parte de Fase 9C. | Comprobar por separado consumidores externos y aprobar su retiro en la limpieza final de compatibilidad. |
 | Compatibilidad de adquisición | `load_legacy_youtube_extraction_config` y `resolve_youtube_extraction_config` | `run_pipeline.py`, entrypoint de adquisición y pruebas | Mantiene el formato anterior y la ruta nueva; ambas continúan cubiertas. | Retirar solo cuando el formato anterior deje de estar soportado de manera deliberada. |
 | RAG no diario | loaders y CLI de evidencia, sidecars, consumer, G-1, G-2, G-2 jerárquico, validación y PoC | nueve scripts versionados, imports entre G-1/G-2 y pruebas | Estos flujos no fueron reemplazados por el runner RAG diario; algunos siguen siendo la única interfaz de su función. | Migración independiente con protección de prompts, contratos, identidades y dry-run. |
 
@@ -50,7 +50,9 @@ un wrapper sin perfil.
 
 Permanecen dependencias separadas fuera del vertical migrado:
 
-- `run_pipeline.py` conserva defaults para Silver, Gold y CSV legacy;
+- los entrypoints de compatibilidad de almacenamiento, limpieza y replay
+  conservan los defaults para CSV legacy, Silver y Gold; `run_pipeline.py` ya
+  no los vuelve a definir;
 - `rag_evidence.py` y `rag_sidecars.py` conservan Gold como default del RAG no
   diario;
 - los entrypoints diarios RAG conservan `media/log_3` como default del formato
@@ -139,3 +141,17 @@ La compatibilidad de configuración permanece en la capa que le corresponde:
 los seis `load_legacy_*` y sus resolvers de `youtube_pipeline.entrypoints`.
 Las pruebas de equivalencia apuntan ahora a esos contratos conservados, sin
 cambiar datos de entrada, expectativas, defaults ni resultados.
+
+## Resultado de Fase 9C
+
+`youtube_pipeline/run_pipeline.py` conserva sus cinco subcomandos y argumentos
+históricos, pero dejó de leer la configuración del detector o de aplicar
+defaults metodológicos por su cuenta. La fachada traduce almacenamiento,
+limpieza y replay a los resolvers comunes; replay produce un `RunConfig`
+resuelto que contiene `PreparedDatasetConfig`, `ReplayConfig` y
+`DetectionConfig.xiao_ema` antes de invocar el componente existente.
+
+Los seis nombres `DEFAULT_TRIGGER_*` continúan exportados porque el script
+retrospectivo los consume, pero ahora son alias derivados de `XiaoEMAConfig` y
+no una autoridad independiente. No se retiraron subcomandos, argumentos,
+loaders públicos ni wrappers.

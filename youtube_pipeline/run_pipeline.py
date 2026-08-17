@@ -13,7 +13,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from youtube_pipeline import (  # noqa: E402
-    DEFAULT_DETECTOR,
     clean_comments_from_config,
     get_detector_names,
     persist_local_files,
@@ -21,115 +20,47 @@ from youtube_pipeline import (  # noqa: E402
     run_prepared_replay,
 )
 from youtube_pipeline.entrypoints.cleaning import (  # noqa: E402
-    load_legacy_cleaning_config,
+    resolve_cleaning_config,
 )
 from youtube_pipeline.entrypoints.local_files_storage import (  # noqa: E402
-    load_legacy_local_files_config,
+    LEGACY_COMMENTS_PATH,
+    LEGACY_VIDEOS_PATH,
+    resolve_local_files_config,
 )
 from youtube_pipeline.entrypoints.prepared_replay import (  # noqa: E402
-    LEGACY_INPUT_PATH as LEGACY_REPLAY_INPUT_PATH,
-    LEGACY_OUTPUT_SNAPSHOTS,
-    load_legacy_prepared_replay_configs,
+    legacy_replay_detector_params,
+    resolve_legacy_prepared_replay_run,
 )
 from youtube_pipeline.entrypoints.youtube_extraction import (  # noqa: E402
     resolve_youtube_api_key,
     resolve_youtube_extraction_config,
 )
-from youtube_pipeline.prepared_replay import (  # noqa: E402
-    DEFAULT_PREPARED_TIMESTAMP_COLUMN,
-    DEFAULT_REPLAY_MAX_SLEEP_SECONDS,
-    DEFAULT_REPLAY_SPEED,
-    DEFAULT_REPLAY_WINDOW_SIZE,
-)
+from youtube_pipeline.detectors import XiaoEMAConfig  # noqa: E402
 
-DEFAULT_TRIGGER_THRESHOLD = 1.5
-DEFAULT_TRIGGER_MIN_VOLUME = 46
-DEFAULT_TRIGGER_WINDOW_SIZE = "120s"
-DEFAULT_TRIGGER_SLIDE_INTERVAL = "30s"
-DEFAULT_TRIGGER_SLOW_WINDOW = "10min"
-DEFAULT_TRIGGER_COOLDOWN = "3min"
+_XIAO_COMPATIBILITY_DEFAULTS = XiaoEMAConfig()
+DEFAULT_TRIGGER_THRESHOLD = _XIAO_COMPATIBILITY_DEFAULTS.sensitivity_threshold
+DEFAULT_TRIGGER_MIN_VOLUME = _XIAO_COMPATIBILITY_DEFAULTS.v_min
+DEFAULT_TRIGGER_WINDOW_SIZE = _XIAO_COMPATIBILITY_DEFAULTS.window_size
+DEFAULT_TRIGGER_SLIDE_INTERVAL = _XIAO_COMPATIBILITY_DEFAULTS.slide_interval
+DEFAULT_TRIGGER_SLOW_WINDOW = _XIAO_COMPATIBILITY_DEFAULTS.slow_window
+DEFAULT_TRIGGER_COOLDOWN = _XIAO_COMPATIBILITY_DEFAULTS.cooldown
 
 
-def run_storage(videos_path: str, comments_path: str, data_root: str) -> dict[str, Any]:
-    config = load_legacy_local_files_config(
+def run_storage(
+    videos_path: str,
+    comments_path: str,
+    data_root: str | None,
+) -> dict[str, Any]:
+    config = resolve_local_files_config(
         config_file=None,
         overrides={
             "videos_path": videos_path,
             "comments_path": comments_path,
             "data_root": data_root,
         },
+        base_dir=Path.cwd(),
     )
     return persist_local_files(config)
-
-
-def _read_json_config(config_file: str | None) -> dict[str, Any]:
-    if not config_file:
-        return {}
-    path = Path(config_file)
-    if not path.exists():
-        raise FileNotFoundError(f"Config file not found: {path}")
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _read_detector_config(config_file: str | None) -> tuple[str | None, dict[str, Any]]:
-    payload = _read_json_config(config_file)
-    if not payload:
-        return None, {}
-
-    detector_payload = payload.get("detector", payload)
-    if isinstance(detector_payload, str):
-        return detector_payload, {}
-    if not isinstance(detector_payload, dict):
-        raise ValueError("Detector config must be an object or a detector name string.")
-
-    detector_name = (
-        detector_payload.get("name")
-        or detector_payload.get("detector")
-        or detector_payload.get("type")
-    )
-    raw_params = detector_payload.get("params", {})
-    if raw_params is None:
-        raw_params = {}
-    if not isinstance(raw_params, dict):
-        raise ValueError("Detector config field 'params' must be an object.")
-
-    inline_params = {
-        key: value
-        for key, value in detector_payload.items()
-        if key not in {"name", "detector", "type", "params"}
-    }
-    return detector_name, {**inline_params, **raw_params}
-
-
-def _resolve_detector_settings(args: argparse.Namespace) -> tuple[str, dict[str, Any]]:
-    config_name, config_params = _read_detector_config(
-        getattr(args, "detector_config_file", None)
-    )
-    detector_name = getattr(args, "detector", None) or config_name or DEFAULT_DETECTOR
-    params = dict(config_params)
-
-    if detector_name == DEFAULT_DETECTOR:
-        params.setdefault("window_size", DEFAULT_TRIGGER_WINDOW_SIZE)
-        params.setdefault("slide_interval", DEFAULT_TRIGGER_SLIDE_INTERVAL)
-        params.setdefault("slow_window", DEFAULT_TRIGGER_SLOW_WINDOW)
-        params.setdefault("sensitivity_threshold", DEFAULT_TRIGGER_THRESHOLD)
-        params.setdefault("v_min", DEFAULT_TRIGGER_MIN_VOLUME)
-        params.setdefault("cooldown", DEFAULT_TRIGGER_COOLDOWN)
-
-    cli_overrides = {
-        "trigger_window_size": "window_size",
-        "trigger_slide_interval": "slide_interval",
-        "trigger_slow_window": "slow_window",
-        "trigger_threshold": "sensitivity_threshold",
-        "trigger_min_volume": "v_min",
-        "trigger_cooldown": "cooldown",
-    }
-    for attr, param_name in cli_overrides.items():
-        value = getattr(args, attr, None)
-        if value is not None:
-            params[param_name] = value
-
-    return detector_name, params
 
 
 def run_extract(
@@ -180,13 +111,13 @@ def run_extract(
 
 
 def run_clean(
-    input_path: str,
-    output_path: str,
-    raw_text_col: str,
-    timestamp_col: str,
-    keep_spam: bool,
+    input_path: str | None,
+    output_path: str | None,
+    raw_text_col: str | None,
+    timestamp_col: str | None,
+    keep_spam: bool | None,
 ) -> Path:
-    config = load_legacy_cleaning_config(
+    config = resolve_cleaning_config(
         config_file=None,
         overrides={
             "input_path": input_path,
@@ -195,73 +126,62 @@ def run_clean(
             "timestamp_col": timestamp_col,
             "keep_spam": keep_spam,
         },
+        base_dir=Path.cwd(),
     )
     return clean_comments_from_config(config)
 
 
 def run_playback(
-    input_path: str,
-    output_snapshots: str,
-    ts_col: str = DEFAULT_PREPARED_TIMESTAMP_COLUMN,
-    window_size: str = DEFAULT_REPLAY_WINDOW_SIZE,
+    input_path: str | None,
+    output_snapshots: str | None,
+    ts_col: str | None = None,
+    window_size: str | None = None,
     trigger_threshold: float | None = None,
     trigger_min_volume: int | None = None,
     trigger_window_size: str | None = None,
     trigger_slide_interval: str | None = None,
     trigger_slow_window: str | None = None,
     trigger_cooldown: str | None = None,
-    speed: float = DEFAULT_REPLAY_SPEED,
-    max_sleep_seconds: float | None = DEFAULT_REPLAY_MAX_SLEEP_SECONDS,
+    speed: float | None = None,
+    max_sleep_seconds: float | None = None,
     start: str | None = None,
     end: str | None = None,
-    detector_name: str = DEFAULT_DETECTOR,
+    detector_name: str | None = None,
+    detector_config_file: str | None = None,
     detector_params: dict[str, Any] | None = None,
 ) -> Path:
-    dataset_config, replay_config = load_legacy_prepared_replay_configs(
-        config_file=None,
-        overrides={
-            "input_path": input_path,
-            "output_snapshots": output_snapshots,
-            "ts_col": ts_col,
-            "window_size": window_size,
-            "speed": speed,
-            "max_sleep_seconds": max_sleep_seconds,
-            "start": start,
-            "end": end,
-        },
-    )
-    resolved_detector_params = dict(detector_params or {})
-    if detector_name == DEFAULT_DETECTOR:
-        resolved_detector_params.setdefault(
-            "window_size", trigger_window_size or DEFAULT_TRIGGER_WINDOW_SIZE
-        )
-        resolved_detector_params.setdefault(
-            "slide_interval",
-            trigger_slide_interval or DEFAULT_TRIGGER_SLIDE_INTERVAL,
-        )
-        resolved_detector_params.setdefault(
-            "slow_window", trigger_slow_window or DEFAULT_TRIGGER_SLOW_WINDOW
-        )
-        resolved_detector_params.setdefault(
-            "sensitivity_threshold",
-            trigger_threshold
-            if trigger_threshold is not None
-            else DEFAULT_TRIGGER_THRESHOLD,
-        )
-        resolved_detector_params.setdefault(
-            "v_min",
-            trigger_min_volume
-            if trigger_min_volume is not None
-            else DEFAULT_TRIGGER_MIN_VOLUME,
-        )
-        resolved_detector_params.setdefault(
-            "cooldown", trigger_cooldown or DEFAULT_TRIGGER_COOLDOWN
-        )
-    return run_prepared_replay(
-        dataset_config,
-        replay_config,
+    resolved, effective_detector_name = resolve_legacy_prepared_replay_run(
+        input_path=input_path,
+        output_snapshots=output_snapshots,
+        ts_col=ts_col,
+        window_size=window_size,
+        speed=speed,
+        max_sleep_seconds=max_sleep_seconds,
+        start=start,
+        end=end,
         detector_name=detector_name,
-        detector_params=resolved_detector_params,
+        detector_config_file=detector_config_file,
+        detector_params=detector_params,
+        trigger_threshold=trigger_threshold,
+        trigger_min_volume=trigger_min_volume,
+        trigger_window_size=trigger_window_size,
+        trigger_slide_interval=trigger_slide_interval,
+        trigger_slow_window=trigger_slow_window,
+        trigger_cooldown=trigger_cooldown,
+        base_dir=Path.cwd(),
+    )
+    if resolved.config.data is None or resolved.config.data.prepared_dataset is None:
+        raise ValueError("Resolved RunConfig must include data.prepared_dataset.")
+    if resolved.config.simulation is None or resolved.config.simulation.replay is None:
+        raise ValueError("Resolved RunConfig must include simulation.replay.")
+    return run_prepared_replay(
+        resolved.config.data.prepared_dataset,
+        resolved.config.simulation.replay,
+        detector_name=effective_detector_name,
+        detector_params=legacy_replay_detector_params(
+            resolved,
+            effective_detector_name,
+        ),
     )
 
 
@@ -302,36 +222,36 @@ def _build_parser() -> argparse.ArgumentParser:
     p_storage.add_argument(
         "--comments-path", required=True, help="CSV/Parquet of comments."
     )
-    p_storage.add_argument("--data-root", default="data", help="Output root folder.")
+    p_storage.add_argument("--data-root", default=None, help="Output root folder.")
 
     p_clean = subparsers.add_parser("clean", help="Run cleaning phase only.")
     p_clean.add_argument(
         "--input-path",
-        default="data/silver/comments",
+        default=None,
         help="Input comments (CSV/Parquet file or Parquet dataset dir).",
     )
     p_clean.add_argument(
         "--output-path",
-        default="data/gold/clean_comments.parquet",
+        default=None,
         help="Output cleaned comments (.parquet or .csv).",
     )
-    p_clean.add_argument("--raw-text-col", default="text")
-    p_clean.add_argument("--timestamp-col", default="published_at")
-    p_clean.add_argument("--keep-spam", action="store_true")
+    p_clean.add_argument("--raw-text-col", default=None)
+    p_clean.add_argument("--timestamp-col", default=None)
+    p_clean.add_argument("--keep-spam", action="store_true", default=None)
 
     p_play = subparsers.add_parser("playback", help="Run playback phase only.")
     p_play.add_argument(
         "--input-path",
-        default=LEGACY_REPLAY_INPUT_PATH,
+        default=None,
         help="Input cleaned dataset (CSV/Parquet).",
     )
     p_play.add_argument(
         "--output-snapshots",
-        default=LEGACY_OUTPUT_SNAPSHOTS,
+        default=None,
         help="Output snapshots as CSV.",
     )
-    p_play.add_argument("--ts-col", default=DEFAULT_PREPARED_TIMESTAMP_COLUMN)
-    p_play.add_argument("--window-size", default=DEFAULT_REPLAY_WINDOW_SIZE)
+    p_play.add_argument("--ts-col", default=None)
+    p_play.add_argument("--window-size", default=None)
     p_play.add_argument("--trigger-threshold", type=float, default=None)
     p_play.add_argument("--trigger-min-volume", type=int, default=None)
     p_play.add_argument("--trigger-window-size", default=None)
@@ -340,11 +260,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_play.add_argument("--trigger-cooldown", default=None)
     p_play.add_argument("--detector", choices=get_detector_names(), default=None)
     p_play.add_argument("--detector-config-file", default=None)
-    p_play.add_argument("--speed", type=float, default=DEFAULT_REPLAY_SPEED)
+    p_play.add_argument("--speed", type=float, default=None)
     p_play.add_argument(
         "--max-sleep-seconds",
         type=float,
-        default=DEFAULT_REPLAY_MAX_SLEEP_SECONDS,
+        default=None,
     )
     p_play.add_argument("--start", default=None)
     p_play.add_argument("--end", default=None)
@@ -352,30 +272,30 @@ def _build_parser() -> argparse.ArgumentParser:
     p_all = subparsers.add_parser("all", help="Run full 3-phase pipeline.")
     p_all.add_argument(
         "--videos-path",
-        default="data/videos_preliminares.csv",
+        default=LEGACY_VIDEOS_PATH,
         help="CSV/Parquet generated from extraction phase.",
     )
     p_all.add_argument(
         "--comments-path",
-        default="data/comments.csv",
+        default=LEGACY_COMMENTS_PATH,
         help="CSV/Parquet generated from extraction phase.",
     )
-    p_all.add_argument("--data-root", default="data")
+    p_all.add_argument("--data-root", default=None)
     p_all.add_argument(
         "--clean-output",
-        default="data/gold/clean_comments.parquet",
+        default=None,
         help="Output cleaned comments path.",
     )
     p_all.add_argument(
         "--snapshots-output",
-        default=LEGACY_OUTPUT_SNAPSHOTS,
+        default=None,
         help="Output snapshots path.",
     )
-    p_all.add_argument("--raw-text-col", default="text")
-    p_all.add_argument("--timestamp-col", default="published_at")
-    p_all.add_argument("--keep-spam", action="store_true")
-    p_all.add_argument("--ts-col", default=DEFAULT_PREPARED_TIMESTAMP_COLUMN)
-    p_all.add_argument("--window-size", default=DEFAULT_REPLAY_WINDOW_SIZE)
+    p_all.add_argument("--raw-text-col", default=None)
+    p_all.add_argument("--timestamp-col", default=None)
+    p_all.add_argument("--keep-spam", action="store_true", default=None)
+    p_all.add_argument("--ts-col", default=None)
+    p_all.add_argument("--window-size", default=None)
     p_all.add_argument("--trigger-threshold", type=float, default=None)
     p_all.add_argument("--trigger-min-volume", type=int, default=None)
     p_all.add_argument("--trigger-window-size", default=None)
@@ -384,11 +304,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_all.add_argument("--trigger-cooldown", default=None)
     p_all.add_argument("--detector", choices=get_detector_names(), default=None)
     p_all.add_argument("--detector-config-file", default=None)
-    p_all.add_argument("--speed", type=float, default=DEFAULT_REPLAY_SPEED)
+    p_all.add_argument("--speed", type=float, default=None)
     p_all.add_argument(
         "--max-sleep-seconds",
         type=float,
-        default=DEFAULT_REPLAY_MAX_SLEEP_SECONDS,
+        default=None,
     )
     p_all.add_argument("--start", default=None)
     p_all.add_argument("--end", default=None)
@@ -450,7 +370,6 @@ def main() -> None:
         return
 
     if args.command == "playback":
-        detector_name, detector_params = _resolve_detector_settings(args)
         output = run_playback(
             input_path=args.input_path,
             output_snapshots=args.output_snapshots,
@@ -460,8 +379,14 @@ def main() -> None:
             max_sleep_seconds=args.max_sleep_seconds,
             start=args.start,
             end=args.end,
-            detector_name=detector_name,
-            detector_params=detector_params,
+            detector_name=args.detector,
+            detector_config_file=args.detector_config_file,
+            trigger_threshold=args.trigger_threshold,
+            trigger_min_volume=args.trigger_min_volume,
+            trigger_window_size=args.trigger_window_size,
+            trigger_slide_interval=args.trigger_slide_interval,
+            trigger_slow_window=args.trigger_slow_window,
+            trigger_cooldown=args.trigger_cooldown,
         )
         print(str(output))
         return
@@ -493,7 +418,6 @@ def main() -> None:
             summary["extract"] = extract_result
 
         if not args.skip_playback:
-            detector_name, detector_params = _resolve_detector_settings(args)
             snapshots_output = run_playback(
                 input_path=str(clean_output),
                 output_snapshots=args.snapshots_output,
@@ -503,8 +427,14 @@ def main() -> None:
                 max_sleep_seconds=args.max_sleep_seconds,
                 start=args.start,
                 end=args.end,
-                detector_name=detector_name,
-                detector_params=detector_params,
+                detector_name=args.detector,
+                detector_config_file=args.detector_config_file,
+                trigger_threshold=args.trigger_threshold,
+                trigger_min_volume=args.trigger_min_volume,
+                trigger_window_size=args.trigger_window_size,
+                trigger_slide_interval=args.trigger_slide_interval,
+                trigger_slow_window=args.trigger_slow_window,
+                trigger_cooldown=args.trigger_cooldown,
             )
             summary["snapshots_output"] = str(snapshots_output)
 

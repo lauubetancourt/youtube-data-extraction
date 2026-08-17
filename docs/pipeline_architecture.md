@@ -81,7 +81,9 @@ See `docs/regression_verification.md` for the latest regression evidence.
 - `detectors.py` owns the detector contract, detector registry, and the default
   `xiao_ema` implementation.
 - `stream_playback.py` remains as a compatibility facade for older imports.
-- `run_pipeline.py` owns CLI orchestration and connects phases.
+- `run_pipeline.py` is the compatibility facade for the historical CLI. It
+  translates legacy arguments through the common `RunConfig` resolvers and
+  connects the unchanged phase components.
 - `scripts/` contains exploratory audit/report helpers. These are useful for
   analysis; scripts that read numeric timestamps should prefer `*_unix_s` and
   fallback to `*_unix_ms`.

@@ -14,6 +14,8 @@ from youtube_pipeline.storage import LocalFilesConfig
 
 
 LEGACY_DATA_ROOT = "data"
+LEGACY_VIDEOS_PATH = "data/videos_preliminares.csv"
+LEGACY_COMMENTS_PATH = "data/comments.csv"
 _LEGACY_IDENTITY = "legacy_local_files_storage"
 
 
@@ -123,6 +125,8 @@ def resolve_local_files_config(
 
 __all__ = [
     "LEGACY_DATA_ROOT",
+    "LEGACY_VIDEOS_PATH",
+    "LEGACY_COMMENTS_PATH",
     "load_legacy_local_files_config",
     "resolve_local_files_config",
 ]
