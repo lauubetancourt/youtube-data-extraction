@@ -332,6 +332,7 @@ def resolve_run_config_paths(
         signals=signals,
         detection=detection,
         rag=rag,
+        artifacts=config.artifacts,
     )
 
 

@@ -21,6 +21,10 @@ from youtube_pipeline.data_extraction import (
     ExtractionConfig,
     run_extraction_pipeline,
 )
+from youtube_pipeline.run_manifest import (
+    build_resolved_config_metadata,
+    validate_current_traceability_support,
+)
 
 
 _LEGACY_IDENTITY = "legacy_youtube_extraction"
@@ -191,16 +195,7 @@ def _attach_resolved_config_to_metadata(
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise TypeError("Acquisition run metadata must be a JSON object.")
-    resolved_config = json.loads(resolved.canonical_json)
-    if not isinstance(resolved_config, dict):
-        raise TypeError("resolved_config must serialize to an object.")
-    payload.update(
-        {
-            "run_id": resolved.config.identity.run_id,
-            "config_hash": resolved.config_hash,
-            "resolved_config": resolved_config,
-        }
-    )
+    payload.update(build_resolved_config_metadata(resolved))
     path.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False),
         encoding="utf-8",
@@ -215,6 +210,7 @@ def run_resolved_youtube_extraction(
 
     if not isinstance(resolved, ResolvedRunConfig):
         raise TypeError("resolved must be ResolvedRunConfig.")
+    validate_current_traceability_support(resolved)
     data = resolved.config.data
     if data is None or data.youtube_api is None:
         raise ValueError("RunConfig must include data.youtube_api for acquisition.")

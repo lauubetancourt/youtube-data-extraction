@@ -18,6 +18,18 @@ from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
 
+RUN_MODE_DEFAULT_TRACE_LEVEL = {
+    "development": "minimal",
+    "reference": "standard",
+    "official": "full",
+}
+TRACE_LEVEL_ORDER = {
+    "minimal": 0,
+    "standard": 1,
+    "full": 2,
+}
+
+
 def _require_optional_instance(
     field_name: str,
     value: Any,
@@ -41,6 +53,41 @@ class RunIdentityConfig:
             raise TypeError("run_id must be a string.")
         if not self.run_id.strip():
             raise ValueError("run_id must not be empty.")
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactsConfig:
+    """Execution-level traceability policy without component artifact details."""
+
+    run_mode: str = "development"
+    trace_level: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.run_mode, str):
+            raise TypeError("run_mode must be a string.")
+        if self.run_mode not in RUN_MODE_DEFAULT_TRACE_LEVEL:
+            supported = ", ".join(RUN_MODE_DEFAULT_TRACE_LEVEL)
+            raise ValueError(
+                f"Unsupported run_mode {self.run_mode!r}; expected one of: "
+                f"{supported}."
+            )
+        level = self.trace_level
+        if level is None:
+            level = RUN_MODE_DEFAULT_TRACE_LEVEL[self.run_mode]
+            object.__setattr__(self, "trace_level", level)
+        if not isinstance(level, str):
+            raise TypeError("trace_level must be a string or None.")
+        if level not in TRACE_LEVEL_ORDER:
+            supported = ", ".join(TRACE_LEVEL_ORDER)
+            raise ValueError(
+                f"Unsupported trace_level {level!r}; expected one of: {supported}."
+            )
+        minimum = RUN_MODE_DEFAULT_TRACE_LEVEL[self.run_mode]
+        if TRACE_LEVEL_ORDER[level] < TRACE_LEVEL_ORDER[minimum]:
+            raise ValueError(
+                f"run_mode={self.run_mode!r} requires trace_level "
+                f"{minimum!r} or higher."
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,6 +238,7 @@ class RunConfig:
     signals: SignalsConfig | None = None
     detection: DetectionConfig | None = None
     rag: RagConfig | None = None
+    artifacts: ArtifactsConfig | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.identity, RunIdentityConfig):
@@ -200,6 +248,7 @@ class RunConfig:
         _require_optional_instance("signals", self.signals, SignalsConfig)
         _require_optional_instance("detection", self.detection, DetectionConfig)
         _require_optional_instance("rag", self.rag, RagConfig)
+        _require_optional_instance("artifacts", self.artifacts, ArtifactsConfig)
         if all(
             section is None
             for section in (

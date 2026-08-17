@@ -62,7 +62,7 @@ _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
 
 _OMITTED_NONE_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     DataConfig: frozenset({"prepared_dataset"}),
-    RunConfig: frozenset({"data", "rag"}),
+    RunConfig: frozenset({"data", "rag", "artifacts"}),
     SimulationConfig: frozenset({"replay"}),
 }
 

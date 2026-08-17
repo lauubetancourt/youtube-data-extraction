@@ -65,3 +65,23 @@ compatibilidad y herramientas de diagnóstico:
 No son una segunda autoridad para nuevas ejecuciones integradas y no deben
 recibir nuevos defaults metodológicos. Su posible retiro corresponde a la Fase
 8, después de verificar que no existan consumidores necesarios.
+
+## Política de trazabilidad
+
+Los perfiles actuales declaran `artifacts.run_mode = development` y
+`artifacts.trace_level = minimal`. Esta política conserva un único manifest de
+ejecución con identidad, configuración efectiva, hash y etapas completadas; no
+activa copias adicionales de datasets ni payloads intermedios.
+
+La autoridad tipada aplica los siguientes mínimos:
+
+- `development` → `minimal`;
+- `reference` → `standard`;
+- `official` → `full`.
+
+El modelo puede representar un nivel superior al mínimo, pero nunca uno
+inferior. Los runners integrados ejecutan actualmente solo
+`development/minimal`; una política superior falla antes de generar artefactos
+para evitar declarar evidencia que todavía no se produce. La retención,
+promoción, inmutabilidad y limpieza automática pertenecen a una tarea posterior
+y no se infieren a partir del nombre de un directorio.

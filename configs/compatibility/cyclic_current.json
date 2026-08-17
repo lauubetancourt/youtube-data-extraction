@@ -2,6 +2,10 @@
   "identity": {
     "run_id": "compatibility_cyclic_current"
   },
+  "artifacts": {
+    "run_mode": "development",
+    "trace_level": "minimal"
+  },
   "simulation": {
     "ingestion": {
       "input_path": "data/gold/clean_comments.parquet",

@@ -210,6 +210,8 @@ class YouTubeExtractionEntrypointTests(unittest.TestCase):
         for key, value in original_metadata.items():
             self.assertEqual(metadata[key], value)
         self.assertEqual(metadata["run_id"], "acquisition_trace")
+        self.assertEqual(metadata["run_mode"], "development")
+        self.assertEqual(metadata["trace_level"], "minimal")
         self.assertEqual(metadata["config_hash"], resolved.config_hash)
         self.assertEqual(
             metadata["resolved_config"]["data"]["youtube_api"]["data_root"],

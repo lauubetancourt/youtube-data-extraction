@@ -2,6 +2,10 @@
   "identity": {
     "run_id": "compatibility_daily_rag_current"
   },
+  "artifacts": {
+    "run_mode": "development",
+    "trace_level": "minimal"
+  },
   "rag": {
     "daily_sidecars": {
       "daily_events_path": "experiments/xiao/media/log_3/cyclic_ingestion_simulation/daily_frequency_baseline_cooldown_0/cycle_daily_frequency_events.jsonl",

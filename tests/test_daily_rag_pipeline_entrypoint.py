@@ -189,6 +189,8 @@ class DailyRagPipelineEntrypointTests(unittest.TestCase):
             self.assertEqual(run_manifest["run_id"], "global_cli_run")
             self.assertEqual(run_manifest["status"], "completed")
             self.assertEqual(run_manifest["execution_mode"], "dry_run")
+            self.assertEqual(run_manifest["run_mode"], "development")
+            self.assertEqual(run_manifest["trace_level"], "minimal")
             self.assertEqual(run_manifest["config_hash"], summary["config_hash"])
             self.assertEqual(
                 run_manifest["completed_stages"],

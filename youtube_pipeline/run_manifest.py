@@ -4,11 +4,50 @@ import json
 from pathlib import Path
 from typing import Any, Sequence
 
-from youtube_pipeline.configuration import ResolvedRunConfig
+from youtube_pipeline.configuration import ArtifactsConfig, ResolvedRunConfig
 
 
 RUN_MANIFEST_FILE = "run_manifest.json"
 RUN_MANIFEST_SCHEMA_VERSION = "1"
+CURRENT_SUPPORTED_TRACEABILITY_POLICIES = frozenset(
+    {("development", "minimal")}
+)
+
+
+def build_resolved_config_metadata(
+    resolved: ResolvedRunConfig,
+) -> dict[str, Any]:
+    """Return the shared execution identity and effective traceability policy."""
+
+    if not isinstance(resolved, ResolvedRunConfig):
+        raise TypeError("resolved must be ResolvedRunConfig.")
+    effective_config = json.loads(resolved.canonical_json)
+    if not isinstance(effective_config, dict):
+        raise TypeError("resolved_config must serialize to an object.")
+    policy = resolved.config.artifacts or ArtifactsConfig()
+    assert policy.trace_level is not None
+    return {
+        "run_id": resolved.config.identity.run_id,
+        "run_mode": policy.run_mode,
+        "trace_level": policy.trace_level,
+        "config_hash": resolved.config_hash,
+        "resolved_config": effective_config,
+    }
+
+
+def validate_current_traceability_support(
+    resolved: ResolvedRunConfig,
+) -> None:
+    """Fail before execution when requested persistence is not implemented."""
+
+    metadata = build_resolved_config_metadata(resolved)
+    policy = (metadata["run_mode"], metadata["trace_level"])
+    if policy not in CURRENT_SUPPORTED_TRACEABILITY_POLICIES:
+        raise ValueError(
+            "Current runners only implement run_mode='development' with "
+            "trace_level='minimal'; requested "
+            f"run_mode={policy[0]!r}, trace_level={policy[1]!r}."
+        )
 
 
 def build_run_manifest(
@@ -19,8 +58,7 @@ def build_run_manifest(
 ) -> dict[str, Any]:
     """Build one compact execution-level manifest from the resolved config."""
 
-    if not isinstance(resolved, ResolvedRunConfig):
-        raise TypeError("resolved must be ResolvedRunConfig.")
+    traceability = build_resolved_config_metadata(resolved)
     if not isinstance(execution_mode, str) or not execution_mode.strip():
         raise ValueError("execution_mode must not be empty.")
     stage_names = list(completed_stages)
@@ -29,16 +67,11 @@ def build_run_manifest(
     ):
         raise ValueError("completed_stages must contain non-empty stage names.")
 
-    effective_config = json.loads(resolved.canonical_json)
-    if not isinstance(effective_config, dict):
-        raise TypeError("resolved_config must serialize to an object.")
     return {
         "schema_version": RUN_MANIFEST_SCHEMA_VERSION,
-        "run_id": resolved.config.identity.run_id,
+        **traceability,
         "status": "completed",
         "execution_mode": execution_mode,
-        "config_hash": resolved.config_hash,
-        "resolved_config": effective_config,
         "completed_stages": stage_names,
     }
 
@@ -72,8 +105,11 @@ def write_run_manifest(
 
 
 __all__ = [
+    "build_resolved_config_metadata",
     "build_run_manifest",
+    "CURRENT_SUPPORTED_TRACEABILITY_POLICIES",
     "RUN_MANIFEST_FILE",
     "RUN_MANIFEST_SCHEMA_VERSION",
+    "validate_current_traceability_support",
     "write_run_manifest",
 ]

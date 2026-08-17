@@ -28,7 +28,10 @@ from youtube_pipeline.entrypoints.common_cli import (
     CommonRunCliOptions,
     parse_common_run_args,
 )
-from youtube_pipeline.run_manifest import write_run_manifest
+from youtube_pipeline.run_manifest import (
+    validate_current_traceability_support,
+    write_run_manifest,
+)
 
 
 def _resolved_path(path: str | Path, *, base_dir: Path) -> Path:
@@ -155,10 +158,12 @@ def _with_output_root(
     )
     return RunConfig(
         identity=config.identity,
+        data=config.data,
         simulation=relocated_simulation,
         signals=relocated_signals,
         detection=relocated_detection,
         rag=config.rag,
+        artifacts=config.artifacts,
     )
 
 
@@ -232,6 +237,7 @@ def resolve_cyclic_pipeline_run(
 def run_cyclic_pipeline(resolved: ResolvedRunConfig) -> dict[str, Any]:
     """Execute the migrated cyclic vertical slice using component configs only."""
 
+    validate_current_traceability_support(resolved)
     config = resolved.config
     _validate_cyclic_profile(config)
     simulation = config.simulation

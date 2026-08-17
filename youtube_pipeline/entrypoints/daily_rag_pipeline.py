@@ -26,7 +26,10 @@ from youtube_pipeline.entrypoints.common_cli import (
     CommonRunCliOptions,
     parse_common_run_args,
 )
-from youtube_pipeline.run_manifest import write_run_manifest
+from youtube_pipeline.run_manifest import (
+    validate_current_traceability_support,
+    write_run_manifest,
+)
 
 
 DAILY_RAG_RUN_MANIFEST_FILE = "daily_rag_run_manifest.json"
@@ -146,10 +149,12 @@ def _with_output_root(config: RunConfig, *, output_root: Path) -> RunConfig:
     )
     return RunConfig(
         identity=config.identity,
+        data=config.data,
         simulation=config.simulation,
         signals=config.signals,
         detection=config.detection,
         rag=relocated_rag,
+        artifacts=config.artifacts,
     )
 
 
@@ -185,6 +190,7 @@ def resolve_daily_rag_pipeline_run(
 def run_daily_rag_pipeline(resolved: ResolvedRunConfig) -> dict[str, Any]:
     """Run sidecars, consumer, and deterministic selection without external calls."""
 
+    validate_current_traceability_support(resolved)
     config = resolved.config
     _validate_daily_rag_profile(config)
     assert config.rag is not None

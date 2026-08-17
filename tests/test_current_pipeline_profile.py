@@ -22,6 +22,8 @@ class CurrentCyclicCompatibilityProfileTests(unittest.TestCase):
         self.assertIsNotNone(run.simulation)
         self.assertIsNotNone(run.signals)
         self.assertIsNotNone(run.detection)
+        self.assertEqual(run.artifacts.run_mode, "development")
+        self.assertEqual(run.artifacts.trace_level, "minimal")
 
         ingestion = run.simulation.ingestion
         self.assertEqual(ingestion.simulation_run_id, "sim_42fc5b0f114b")
@@ -93,7 +95,11 @@ class CurrentCyclicCompatibilityProfileTests(unittest.TestCase):
 
         self.assertEqual(
             set(payload),
-            {"identity", "simulation", "signals", "detection"},
+            {"identity", "simulation", "signals", "detection", "artifacts"},
+        )
+        self.assertEqual(
+            payload["artifacts"],
+            {"run_mode": "development", "trace_level": "minimal"},
         )
         self.assertNotIn("rag", payload)
         self.assertNotIn("acquisition", payload)

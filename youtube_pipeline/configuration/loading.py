@@ -22,6 +22,7 @@ from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
 from .models import (
+    ArtifactsConfig,
     DataConfig,
     DetectionConfig,
     RagConfig,
@@ -31,7 +32,15 @@ from .models import (
     SimulationConfig,
 )
 
-_ROOT_FIELDS = {"identity", "data", "simulation", "signals", "detection", "rag"}
+_ROOT_FIELDS = {
+    "identity",
+    "data",
+    "simulation",
+    "signals",
+    "detection",
+    "rag",
+    "artifacts",
+}
 _DATA_FIELDS = {"youtube_api", "local_files", "prepared_dataset", "cleaning"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter", "replay"}
 _SIGNALS_FIELDS = {"daily"}
@@ -131,6 +140,18 @@ def _build_identity(payload: Any) -> RunIdentityConfig:
     if "run_id" not in identity_payload:
         raise ValueError("identity.run_id is required.")
     return RunIdentityConfig(run_id=identity_payload["run_id"])
+
+
+def _build_artifacts(payload: Any) -> ArtifactsConfig:
+    section = _require_object(payload, "artifacts")
+    _reject_unknown_keys(
+        section,
+        {"run_mode", "trace_level"},
+        "artifacts",
+    )
+    artifacts = ArtifactsConfig(**section)
+    _validate_dataclass_field_types(artifacts, "artifacts")
+    return artifacts
 
 
 def _build_data(payload: Any) -> DataConfig:
@@ -330,6 +351,11 @@ def run_config_from_mapping(
         rag=(
             _build_rag(root["rag"])
             if "rag" in root
+            else None
+        ),
+        artifacts=(
+            _build_artifacts(root["artifacts"])
+            if "artifacts" in root
             else None
         ),
     )
