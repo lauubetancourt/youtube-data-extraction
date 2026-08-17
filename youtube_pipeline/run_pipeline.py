@@ -16,7 +16,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from youtube_pipeline import (  # noqa: E402
     DEFAULT_DETECTOR,
-    ExtractionConfig,
     build_event_time_window_stream,
     clean_comments_dataframe,
     create_detector,
@@ -25,6 +24,10 @@ from youtube_pipeline import (  # noqa: E402
     read_dataset_for_playback,
     replay_events,
     run_extraction_pipeline,
+)
+from youtube_pipeline.entrypoints.youtube_extraction import (  # noqa: E402
+    resolve_youtube_api_key,
+    resolve_youtube_extraction_config,
 )
 
 DEFAULT_TRIGGER_THRESHOLD = 1.5
@@ -144,9 +147,6 @@ def run_extract(
     save_legacy_csv: bool | None = None,
     log_level: str = "INFO",
 ) -> dict[str, Any]:
-    cfg_payload = _read_json_config(config_file)
-    cfg = ExtractionConfig.from_mapping(cfg_payload)
-
     overrides = {
         "data_root": data_root,
         "query": query,
@@ -158,16 +158,26 @@ def run_extract(
         "max_results": max_results,
         "save_legacy_csv": save_legacy_csv,
     }
-    for key, value in overrides.items():
-        if value is not None:
-            setattr(cfg, key, value)
+    cfg = resolve_youtube_extraction_config(
+        config_file=config_file,
+        overrides={
+            key: value
+            for key, value in overrides.items()
+            if value is not None
+        },
+        base_dir=Path.cwd(),
+    )
 
     logging.basicConfig(
         level=getattr(logging, log_level),
         format="%(asctime)s | %(levelname)s | %(message)s",
     )
     logger = logging.getLogger("run_pipeline.extract")
-    return run_extraction_pipeline(cfg, logger)
+    return run_extraction_pipeline(
+        cfg,
+        logger,
+        api_key=resolve_youtube_api_key(),
+    )
 
 
 def run_clean(
