@@ -2,6 +2,11 @@
 
 from .cleaning import CleaningConfig, clean_comments_dataframe, clean_comments_from_config
 from .data_extraction import ExtractionConfig, run_extraction_pipeline
+from .prepared_replay import (
+    PreparedDatasetConfig,
+    ReplayConfig,
+    run_prepared_replay,
+)
 from .storage import (
     LocalFilesConfig,
     normalize_comment_timestamps,
@@ -40,8 +45,11 @@ __all__ = [
     "normalize_video_timestamps",
     "persist_batch_snapshot",
     "persist_local_files",
+    "PreparedDatasetConfig",
     "read_dataset_for_playback",
+    "ReplayConfig",
     "run_extraction_pipeline",
+    "run_prepared_replay",
     "replay_events",
     "TriggerDetector",
     "write_jsonl",

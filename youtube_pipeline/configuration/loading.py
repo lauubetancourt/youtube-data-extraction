@@ -18,6 +18,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
+from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
 from .models import (
@@ -31,8 +32,8 @@ from .models import (
 )
 
 _ROOT_FIELDS = {"identity", "data", "simulation", "signals", "detection", "rag"}
-_DATA_FIELDS = {"youtube_api", "local_files", "cleaning"}
-_SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter"}
+_DATA_FIELDS = {"youtube_api", "local_files", "prepared_dataset", "cleaning"}
+_SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter", "replay"}
 _SIGNALS_FIELDS = {"daily"}
 _DETECTION_FIELDS = {"connector", "daily_frequency"}
 _RAG_FIELDS = {"daily_sidecars", "daily_consumer", "daily_context_selection"}
@@ -137,6 +138,7 @@ def _build_data(payload: Any) -> DataConfig:
     _reject_unknown_keys(section, _DATA_FIELDS, "data")
     youtube_api = None
     local_files = None
+    prepared_dataset = None
     cleaning = None
     if "youtube_api" in section:
         component_payload = _require_object(
@@ -159,6 +161,12 @@ def _build_data(payload: Any) -> DataConfig:
             section["local_files"],
             "data.local_files",
         )
+    if "prepared_dataset" in section:
+        prepared_dataset = _build_component(
+            PreparedDatasetConfig,
+            section["prepared_dataset"],
+            "data.prepared_dataset",
+        )
     if "cleaning" in section:
         cleaning = _build_component(
             CleaningConfig,
@@ -168,6 +176,7 @@ def _build_data(payload: Any) -> DataConfig:
     return DataConfig(
         youtube_api=youtube_api,
         local_files=local_files,
+        prepared_dataset=prepared_dataset,
         cleaning=cleaning,
     )
 
@@ -201,6 +210,15 @@ def _build_simulation(payload: Any) -> SimulationConfig:
                 "simulation.stateful_adapter",
             )
             if "stateful_adapter" in section
+            else None
+        ),
+        replay=(
+            _build_component(
+                ReplayConfig,
+                section["replay"],
+                "simulation.replay",
+            )
+            if "replay" in section
             else None
         ),
     )

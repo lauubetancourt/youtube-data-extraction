@@ -8,22 +8,17 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from youtube_pipeline import (  # noqa: E402
     DEFAULT_DETECTOR,
-    build_event_time_window_stream,
     clean_comments_from_config,
-    create_detector,
     get_detector_names,
     persist_local_files,
-    read_dataset_for_playback,
-    replay_events,
     run_extraction_pipeline,
+    run_prepared_replay,
 )
 from youtube_pipeline.entrypoints.cleaning import (  # noqa: E402
     load_legacy_cleaning_config,
@@ -31,9 +26,20 @@ from youtube_pipeline.entrypoints.cleaning import (  # noqa: E402
 from youtube_pipeline.entrypoints.local_files_storage import (  # noqa: E402
     load_legacy_local_files_config,
 )
+from youtube_pipeline.entrypoints.prepared_replay import (  # noqa: E402
+    LEGACY_INPUT_PATH as LEGACY_REPLAY_INPUT_PATH,
+    LEGACY_OUTPUT_SNAPSHOTS,
+    load_legacy_prepared_replay_configs,
+)
 from youtube_pipeline.entrypoints.youtube_extraction import (  # noqa: E402
     resolve_youtube_api_key,
     resolve_youtube_extraction_config,
+)
+from youtube_pipeline.prepared_replay import (  # noqa: E402
+    DEFAULT_PREPARED_TIMESTAMP_COLUMN,
+    DEFAULT_REPLAY_MAX_SLEEP_SECONDS,
+    DEFAULT_REPLAY_SPEED,
+    DEFAULT_REPLAY_WINDOW_SIZE,
 )
 
 DEFAULT_TRIGGER_THRESHOLD = 1.5
@@ -196,33 +202,35 @@ def run_clean(
 def run_playback(
     input_path: str,
     output_snapshots: str,
-    ts_col: str = "event_time_utc",
-    window_size: str = "20min",
+    ts_col: str = DEFAULT_PREPARED_TIMESTAMP_COLUMN,
+    window_size: str = DEFAULT_REPLAY_WINDOW_SIZE,
     trigger_threshold: float | None = None,
     trigger_min_volume: int | None = None,
     trigger_window_size: str | None = None,
     trigger_slide_interval: str | None = None,
     trigger_slow_window: str | None = None,
     trigger_cooldown: str | None = None,
-    speed: float = 120.0,
-    max_sleep_seconds: float | None = 0.2,
+    speed: float = DEFAULT_REPLAY_SPEED,
+    max_sleep_seconds: float | None = DEFAULT_REPLAY_MAX_SLEEP_SECONDS,
     start: str | None = None,
     end: str | None = None,
     detector_name: str = DEFAULT_DETECTOR,
     detector_params: dict[str, Any] | None = None,
 ) -> Path:
-    try:
-        from streamz import Stream
-    except ImportError as exc:
-        raise ImportError(
-            "streamz is required for playback. Install with: pip install streamz"
-        ) from exc
-
-    events = read_dataset_for_playback(input_path, ts_col=ts_col)
-    source = Stream()
-    snapshots: list[dict[str, Any]] = []
+    dataset_config, replay_config = load_legacy_prepared_replay_configs(
+        config_file=None,
+        overrides={
+            "input_path": input_path,
+            "output_snapshots": output_snapshots,
+            "ts_col": ts_col,
+            "window_size": window_size,
+            "speed": speed,
+            "max_sleep_seconds": max_sleep_seconds,
+            "start": start,
+            "end": end,
+        },
+    )
     resolved_detector_params = dict(detector_params or {})
-    resolved_detector_params.setdefault("ts_col", ts_col)
     if detector_name == DEFAULT_DETECTOR:
         resolved_detector_params.setdefault(
             "window_size", trigger_window_size or DEFAULT_TRIGGER_WINDOW_SIZE
@@ -249,33 +257,12 @@ def run_playback(
         resolved_detector_params.setdefault(
             "cooldown", trigger_cooldown or DEFAULT_TRIGGER_COOLDOWN
         )
-    detector = create_detector(detector_name, **resolved_detector_params)
-
-    (
-        build_event_time_window_stream(
-            source,
-            window_size=window_size,
-            ts_col=ts_col,
-        )
-        .sink(snapshots.append)
+    return run_prepared_replay(
+        dataset_config,
+        replay_config,
+        detector_name=detector_name,
+        detector_params=resolved_detector_params,
     )
-
-    replay_events(
-        source=source,
-        events_df=events,
-        ts_col=ts_col,
-        speed=speed,
-        max_sleep_seconds=max_sleep_seconds,
-        start=start,
-        end=end,
-        event_hooks=[detector.on_event],
-    )
-
-    snap_df = pd.json_normalize(snapshots, sep=".")
-    out_path = Path(output_snapshots)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    snap_df.to_csv(out_path, index=False)
-    return out_path
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -335,16 +322,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_play = subparsers.add_parser("playback", help="Run playback phase only.")
     p_play.add_argument(
         "--input-path",
-        default="data/gold/clean_comments.parquet",
+        default=LEGACY_REPLAY_INPUT_PATH,
         help="Input cleaned dataset (CSV/Parquet).",
     )
     p_play.add_argument(
         "--output-snapshots",
-        default="data/gold/snapshots.csv",
+        default=LEGACY_OUTPUT_SNAPSHOTS,
         help="Output snapshots as CSV.",
     )
-    p_play.add_argument("--ts-col", default="event_time_utc")
-    p_play.add_argument("--window-size", default="20min")
+    p_play.add_argument("--ts-col", default=DEFAULT_PREPARED_TIMESTAMP_COLUMN)
+    p_play.add_argument("--window-size", default=DEFAULT_REPLAY_WINDOW_SIZE)
     p_play.add_argument("--trigger-threshold", type=float, default=None)
     p_play.add_argument("--trigger-min-volume", type=int, default=None)
     p_play.add_argument("--trigger-window-size", default=None)
@@ -353,8 +340,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_play.add_argument("--trigger-cooldown", default=None)
     p_play.add_argument("--detector", choices=get_detector_names(), default=None)
     p_play.add_argument("--detector-config-file", default=None)
-    p_play.add_argument("--speed", type=float, default=120.0)
-    p_play.add_argument("--max-sleep-seconds", type=float, default=0.2)
+    p_play.add_argument("--speed", type=float, default=DEFAULT_REPLAY_SPEED)
+    p_play.add_argument(
+        "--max-sleep-seconds",
+        type=float,
+        default=DEFAULT_REPLAY_MAX_SLEEP_SECONDS,
+    )
     p_play.add_argument("--start", default=None)
     p_play.add_argument("--end", default=None)
 
@@ -377,14 +368,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_all.add_argument(
         "--snapshots-output",
-        default="data/gold/snapshots.csv",
+        default=LEGACY_OUTPUT_SNAPSHOTS,
         help="Output snapshots path.",
     )
     p_all.add_argument("--raw-text-col", default="text")
     p_all.add_argument("--timestamp-col", default="published_at")
     p_all.add_argument("--keep-spam", action="store_true")
-    p_all.add_argument("--ts-col", default="event_time_utc")
-    p_all.add_argument("--window-size", default="20min")
+    p_all.add_argument("--ts-col", default=DEFAULT_PREPARED_TIMESTAMP_COLUMN)
+    p_all.add_argument("--window-size", default=DEFAULT_REPLAY_WINDOW_SIZE)
     p_all.add_argument("--trigger-threshold", type=float, default=None)
     p_all.add_argument("--trigger-min-volume", type=int, default=None)
     p_all.add_argument("--trigger-window-size", default=None)
@@ -393,8 +384,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_all.add_argument("--trigger-cooldown", default=None)
     p_all.add_argument("--detector", choices=get_detector_names(), default=None)
     p_all.add_argument("--detector-config-file", default=None)
-    p_all.add_argument("--speed", type=float, default=120.0)
-    p_all.add_argument("--max-sleep-seconds", type=float, default=0.2)
+    p_all.add_argument("--speed", type=float, default=DEFAULT_REPLAY_SPEED)
+    p_all.add_argument(
+        "--max-sleep-seconds",
+        type=float,
+        default=DEFAULT_REPLAY_MAX_SLEEP_SECONDS,
+    )
     p_all.add_argument("--start", default=None)
     p_all.add_argument("--end", default=None)
     p_all.add_argument(

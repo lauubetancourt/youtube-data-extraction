@@ -14,6 +14,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
+from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
 
@@ -48,15 +49,25 @@ class DataConfig:
 
     youtube_api: ExtractionConfig | None = None
     local_files: LocalFilesConfig | None = None
+    prepared_dataset: PreparedDatasetConfig | None = None
     cleaning: CleaningConfig | None = None
 
     def __post_init__(self) -> None:
         _require_optional_instance("youtube_api", self.youtube_api, ExtractionConfig)
         _require_optional_instance("local_files", self.local_files, LocalFilesConfig)
+        _require_optional_instance(
+            "prepared_dataset",
+            self.prepared_dataset,
+            PreparedDatasetConfig,
+        )
         _require_optional_instance("cleaning", self.cleaning, CleaningConfig)
         configured_sources = sum(
             source is not None
-            for source in (self.youtube_api, self.local_files)
+            for source in (
+                self.youtube_api,
+                self.local_files,
+                self.prepared_dataset,
+            )
         )
         if configured_sources > 1:
             raise ValueError("DataConfig must configure exactly one data source.")
@@ -74,6 +85,7 @@ class SimulationConfig:
     ingestion: CyclicIngestionConfig | None = None
     orchestration: CyclicOrchestratorConfig | None = None
     stateful_adapter: CyclicStatefulAdapterConfig | None = None
+    replay: ReplayConfig | None = None
 
     def __post_init__(self) -> None:
         _require_optional_instance("ingestion", self.ingestion, CyclicIngestionConfig)
@@ -87,9 +99,15 @@ class SimulationConfig:
             self.stateful_adapter,
             CyclicStatefulAdapterConfig,
         )
+        _require_optional_instance("replay", self.replay, ReplayConfig)
         if all(
             config is None
-            for config in (self.ingestion, self.orchestration, self.stateful_adapter)
+            for config in (
+                self.ingestion,
+                self.orchestration,
+                self.stateful_adapter,
+                self.replay,
+            )
         ):
             raise ValueError("SimulationConfig must configure at least one stage.")
 

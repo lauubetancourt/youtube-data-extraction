@@ -19,12 +19,15 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
+from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
-from .models import RunConfig
+from .models import DataConfig, RunConfig, SimulationConfig
 
 _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     CleaningConfig: frozenset({"input_path", "output_path"}),
+    PreparedDatasetConfig: frozenset({"path"}),
+    ReplayConfig: frozenset({"output_snapshots"}),
     ExtractionConfig: frozenset({"data_root", "metadata_path"}),
     LocalFilesConfig: frozenset(
         {"videos_path", "comments_path", "data_root"}
@@ -58,7 +61,9 @@ _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
 }
 
 _OMITTED_NONE_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
+    DataConfig: frozenset({"prepared_dataset"}),
     RunConfig: frozenset({"data", "rag"}),
+    SimulationConfig: frozenset({"replay"}),
 }
 
 

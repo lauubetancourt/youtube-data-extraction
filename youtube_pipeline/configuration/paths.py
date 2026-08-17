@@ -14,6 +14,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
+from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
 from .models import (
@@ -76,6 +77,23 @@ def _resolve_cleaning(
         config,
         input_path=_resolve_path(config.input_path, base_dir),
         output_path=_resolve_path(config.output_path, base_dir),
+    )
+
+
+def _resolve_prepared_dataset(
+    config: PreparedDatasetConfig,
+    base_dir: Path,
+) -> PreparedDatasetConfig:
+    return replace(config, path=_resolve_path(config.path, base_dir))
+
+
+def _resolve_replay(
+    config: ReplayConfig,
+    base_dir: Path,
+) -> ReplayConfig:
+    return replace(
+        config,
+        output_snapshots=_resolve_path(config.output_snapshots, base_dir),
     )
 
 
@@ -222,6 +240,11 @@ def resolve_run_config_paths(
                 if data.local_files is not None
                 else None
             ),
+            prepared_dataset=(
+                _resolve_prepared_dataset(data.prepared_dataset, base)
+                if data.prepared_dataset is not None
+                else None
+            ),
             cleaning=(
                 _resolve_cleaning(data.cleaning, base)
                 if data.cleaning is not None
@@ -245,6 +268,11 @@ def resolve_run_config_paths(
             stateful_adapter=(
                 _resolve_stateful_adapter(simulation.stateful_adapter, base)
                 if simulation.stateful_adapter is not None
+                else None
+            ),
+            replay=(
+                _resolve_replay(simulation.replay, base)
+                if simulation.replay is not None
                 else None
             ),
         )
