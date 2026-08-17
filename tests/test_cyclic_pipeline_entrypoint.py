@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import tempfile
@@ -104,6 +105,10 @@ class CyclicPipelineEntrypointTests(unittest.TestCase):
             self.assertEqual(summary["run_id"], "cli_run")
             self.assertEqual(len(summary["config_hash"]), 64)
             self.assertEqual(summary["execution_mode"], "dry_run")
+            self.assertEqual(
+                summary["run_manifest"],
+                str(relocated.resolve() / "run_manifest.json"),
+            )
             self.assertEqual(summary["stages"]["ingestion"]["cycles_total"], 3)
             self.assertEqual(
                 summary["stages"]["detection_connector"]["events_detected_count"],
@@ -121,6 +126,47 @@ class CyclicPipelineEntrypointTests(unittest.TestCase):
             self.assertTrue(
                 (relocated / "baseline" / "cycle_daily_frequency_events.jsonl").is_file()
             )
+            run_manifest = json.loads(
+                (relocated / "run_manifest.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(run_manifest["schema_version"], "1")
+            self.assertEqual(run_manifest["run_id"], "cli_run")
+            self.assertEqual(run_manifest["status"], "completed")
+            self.assertEqual(run_manifest["execution_mode"], "dry_run")
+            self.assertEqual(run_manifest["config_hash"], summary["config_hash"])
+            self.assertEqual(
+                run_manifest["completed_stages"],
+                [
+                    "ingestion",
+                    "orchestration",
+                    "stateful_adapter",
+                    "detection_connector",
+                    "daily_signals",
+                    "daily_frequency",
+                ],
+            )
+            resolved_config = run_manifest["resolved_config"]
+            self.assertEqual(resolved_config["identity"]["run_id"], "cli_run")
+            self.assertEqual(
+                resolved_config["simulation"]["ingestion"]["input_path"],
+                "comments.parquet",
+            )
+            self.assertEqual(
+                resolved_config["simulation"]["ingestion"]["output_dir"],
+                "relocated",
+            )
+            canonical = json.dumps(
+                resolved_config,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            self.assertEqual(
+                hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+                run_manifest["config_hash"],
+            )
+            self.assertNotIn(str(base), json.dumps(run_manifest))
             self.assertFalse((base / "profile_output").exists())
 
     def test_run_id_override_changes_only_the_resolved_identity(self) -> None:

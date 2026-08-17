@@ -28,6 +28,7 @@ from youtube_pipeline.entrypoints.common_cli import (
     CommonRunCliOptions,
     parse_common_run_args,
 )
+from youtube_pipeline.run_manifest import write_run_manifest
 
 
 def _resolved_path(path: str | Path, *, base_dir: Path) -> Path:
@@ -262,10 +263,17 @@ def run_cyclic_pipeline(resolved: ResolvedRunConfig) -> dict[str, Any]:
             detection.daily_frequency
         ),
     }
+    run_manifest = write_run_manifest(
+        resolved,
+        output_dir=simulation.ingestion.output_dir,
+        execution_mode="dry_run",
+        completed_stages=tuple(stages),
+    )
     return {
         "run_id": config.identity.run_id,
         "config_hash": resolved.config_hash,
         "execution_mode": "dry_run",
+        "run_manifest": str(run_manifest),
         "stages": stages,
     }
 
