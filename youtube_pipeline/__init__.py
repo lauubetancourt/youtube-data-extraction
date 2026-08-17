@@ -1,6 +1,6 @@
 """Utilities for YouTube batch extraction, cleaning, and Streamz playback."""
 
-from .cleaning import clean_comments_dataframe
+from .cleaning import CleaningConfig, clean_comments_dataframe, clean_comments_from_config
 from .data_extraction import ExtractionConfig, run_extraction_pipeline
 from .storage import (
     LocalFilesConfig,
@@ -27,6 +27,8 @@ from .stream_playback import (
 __all__ = [
     "build_event_time_window_stream",
     "clean_comments_dataframe",
+    "clean_comments_from_config",
+    "CleaningConfig",
     "create_detector",
     "DEFAULT_DETECTOR",
     "default_activity_metrics",

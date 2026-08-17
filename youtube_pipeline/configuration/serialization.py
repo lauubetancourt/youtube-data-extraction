@@ -8,6 +8,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from youtube_pipeline.cleaning import CleaningConfig
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
 from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
 from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
@@ -23,6 +24,7 @@ from youtube_pipeline.storage import LocalFilesConfig
 from .models import RunConfig
 
 _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
+    CleaningConfig: frozenset({"input_path", "output_path"}),
     ExtractionConfig: frozenset({"data_root", "metadata_path"}),
     LocalFilesConfig: frozenset(
         {"videos_path", "comments_path", "data_root"}

@@ -7,6 +7,7 @@ from dataclasses import fields, is_dataclass
 from pathlib import Path
 from typing import Any, Union, get_args, get_origin, get_type_hints
 
+from youtube_pipeline.cleaning import CleaningConfig
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
 from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
 from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
@@ -30,7 +31,7 @@ from .models import (
 )
 
 _ROOT_FIELDS = {"identity", "data", "simulation", "signals", "detection", "rag"}
-_DATA_FIELDS = {"youtube_api", "local_files"}
+_DATA_FIELDS = {"youtube_api", "local_files", "cleaning"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter"}
 _SIGNALS_FIELDS = {"daily"}
 _DETECTION_FIELDS = {"connector", "daily_frequency"}
@@ -136,6 +137,7 @@ def _build_data(payload: Any) -> DataConfig:
     _reject_unknown_keys(section, _DATA_FIELDS, "data")
     youtube_api = None
     local_files = None
+    cleaning = None
     if "youtube_api" in section:
         component_payload = _require_object(
             section["youtube_api"],
@@ -157,9 +159,16 @@ def _build_data(payload: Any) -> DataConfig:
             section["local_files"],
             "data.local_files",
         )
+    if "cleaning" in section:
+        cleaning = _build_component(
+            CleaningConfig,
+            section["cleaning"],
+            "data.cleaning",
+        )
     return DataConfig(
         youtube_api=youtube_api,
         local_files=local_files,
+        cleaning=cleaning,
     )
 
 

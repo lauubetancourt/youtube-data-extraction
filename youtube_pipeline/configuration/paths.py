@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from youtube_pipeline.cleaning import CleaningConfig
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
 from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
 from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
@@ -64,6 +65,17 @@ def _resolve_local_files(
         videos_path=_resolve_path(config.videos_path, base_dir),
         comments_path=_resolve_path(config.comments_path, base_dir),
         data_root=_resolve_path(config.data_root, base_dir),
+    )
+
+
+def _resolve_cleaning(
+    config: CleaningConfig,
+    base_dir: Path,
+) -> CleaningConfig:
+    return replace(
+        config,
+        input_path=_resolve_path(config.input_path, base_dir),
+        output_path=_resolve_path(config.output_path, base_dir),
     )
 
 
@@ -208,6 +220,11 @@ def resolve_run_config_paths(
             local_files=(
                 _resolve_local_files(data.local_files, base)
                 if data.local_files is not None
+                else None
+            ),
+            cleaning=(
+                _resolve_cleaning(data.cleaning, base)
+                if data.cleaning is not None
                 else None
             ),
         )

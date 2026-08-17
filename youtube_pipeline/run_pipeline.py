@@ -17,13 +17,16 @@ if str(PROJECT_ROOT) not in sys.path:
 from youtube_pipeline import (  # noqa: E402
     DEFAULT_DETECTOR,
     build_event_time_window_stream,
-    clean_comments_dataframe,
+    clean_comments_from_config,
     create_detector,
     get_detector_names,
     persist_local_files,
     read_dataset_for_playback,
     replay_events,
     run_extraction_pipeline,
+)
+from youtube_pipeline.entrypoints.cleaning import (  # noqa: E402
+    load_legacy_cleaning_config,
 )
 from youtube_pipeline.entrypoints.local_files_storage import (  # noqa: E402
     load_legacy_local_files_config,
@@ -39,25 +42,6 @@ DEFAULT_TRIGGER_WINDOW_SIZE = "120s"
 DEFAULT_TRIGGER_SLIDE_INTERVAL = "30s"
 DEFAULT_TRIGGER_SLOW_WINDOW = "10min"
 DEFAULT_TRIGGER_COOLDOWN = "3min"
-
-
-def _read_table(path: str | Path) -> pd.DataFrame:
-    p = Path(path)
-    if p.is_dir() or p.suffix.lower() == ".parquet":
-        return pd.read_parquet(p)
-    if p.suffix.lower() == ".csv":
-        return pd.read_csv(p)
-    raise ValueError(f"Unsupported file format: {p}")
-
-
-def _write_table(df: pd.DataFrame, path: str | Path) -> Path:
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    if p.suffix.lower() == ".csv":
-        df.to_csv(p, index=False)
-    else:
-        df.to_parquet(p, index=False)
-    return p
 
 
 def run_storage(videos_path: str, comments_path: str, data_root: str) -> dict[str, Any]:
@@ -196,18 +180,17 @@ def run_clean(
     timestamp_col: str,
     keep_spam: bool,
 ) -> Path:
-    comments_df = _read_table(input_path)
-    ts_col = timestamp_col
-    if ts_col not in comments_df.columns and "event_time_utc" in comments_df.columns:
-        ts_col = "event_time_utc"
-
-    clean_df = clean_comments_dataframe(
-        comments_df,
-        raw_text_col=raw_text_col,
-        timestamp_col=ts_col,
-        keep_spam=keep_spam,
+    config = load_legacy_cleaning_config(
+        config_file=None,
+        overrides={
+            "input_path": input_path,
+            "output_path": output_path,
+            "raw_text_col": raw_text_col,
+            "timestamp_col": timestamp_col,
+            "keep_spam": keep_spam,
+        },
     )
-    return _write_table(clean_df, output_path)
+    return clean_comments_from_config(config)
 
 
 def run_playback(

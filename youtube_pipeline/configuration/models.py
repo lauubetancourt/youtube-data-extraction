@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from youtube_pipeline.cleaning import CleaningConfig
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
 from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
 from youtube_pipeline.cyclic_ingestion import CyclicIngestionConfig
@@ -47,16 +48,23 @@ class DataConfig:
 
     youtube_api: ExtractionConfig | None = None
     local_files: LocalFilesConfig | None = None
+    cleaning: CleaningConfig | None = None
 
     def __post_init__(self) -> None:
         _require_optional_instance("youtube_api", self.youtube_api, ExtractionConfig)
         _require_optional_instance("local_files", self.local_files, LocalFilesConfig)
+        _require_optional_instance("cleaning", self.cleaning, CleaningConfig)
         configured_sources = sum(
             source is not None
             for source in (self.youtube_api, self.local_files)
         )
-        if configured_sources != 1:
+        if configured_sources > 1:
             raise ValueError("DataConfig must configure exactly one data source.")
+        if configured_sources == 0 and self.cleaning is None:
+            raise ValueError(
+                "DataConfig must configure exactly one data source or at least "
+                "one preparation stage."
+            )
 
 
 @dataclass(frozen=True, slots=True)
