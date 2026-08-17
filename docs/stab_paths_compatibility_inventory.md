@@ -94,3 +94,21 @@ en bloque estas interfaces.
 Por tanto, Fase 8A no autoriza ninguna eliminación. La siguiente unidad de
 trabajo debe seleccionar un único contrato de compatibilidad, demostrar su
 reemplazo y solicitar aprobación antes de retirarlo.
+
+## Resultado de Fase 8B
+
+Con aprobación posterior al inventario se retiraron las seis fachadas
+`python -m` de los módulos de dominio cíclicos. La búsqueda local no mostró
+consumidores versionados y cada una ya tenía como sucesor un script que importa
+directamente el mismo entrypoint:
+
+- `scripts/run_cyclic_ingestion_simulation.py`;
+- `scripts/run_cyclic_ingestion_orchestrator.py`;
+- `scripts/run_cyclic_stateful_adapter.py`;
+- `scripts/run_cyclic_detection_connector.py`;
+- `scripts/run_cyclic_daily_signals.py`;
+- `scripts/run_daily_frequency_baseline.py`.
+
+No se retiraron los scripts, entrypoints, loaders legacy, defaults ni contratos
+de configuración. Las tres fachadas `python -m` diarias RAG permanecen sin
+cambios y requieren una decisión independiente.

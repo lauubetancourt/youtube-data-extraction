@@ -735,20 +735,8 @@ def build_cyclic_ingestion_dry_run(config: CyclicIngestionConfig) -> dict[str, A
     }
 
 
-def main(argv: list[str] | None = None) -> None:
-    """Compatibility shim for ``python -m youtube_pipeline.cyclic_ingestion``."""
-
-    from .entrypoints.cyclic_ingestion import main as entrypoint_main
-
-    entrypoint_main(argv)
-
-
 __all__ = [
     "CyclicIngestionConfig",
     "build_cyclic_ingestion_dry_run",
     "load_cyclic_ingestion_config",
 ]
-
-
-if __name__ == "__main__":
-    main()

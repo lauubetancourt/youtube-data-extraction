@@ -547,14 +547,6 @@ def run_daily_frequency_baseline(config: DailyFrequencyBaselineConfig) -> dict[s
     }
 
 
-def main(argv: list[str] | None = None) -> None:
-    """Compatibility shim for ``python -m youtube_pipeline.daily_frequency_baseline``."""
-
-    from .entrypoints.daily_frequency_baseline import main as entrypoint_main
-
-    entrypoint_main(argv)
-
-
 __all__ = [
     "CONFIGURED_COOLDOWN_POLICY",
     "DEFAULT_COOLDOWN_POLICY",
@@ -563,7 +555,3 @@ __all__ = [
     "load_daily_frequency_baseline_config",
     "run_daily_frequency_baseline",
 ]
-
-
-if __name__ == "__main__":
-    main()

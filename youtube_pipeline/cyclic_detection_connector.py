@@ -1097,20 +1097,8 @@ def run_cyclic_detection_connector(config: CyclicDetectionConnectorConfig) -> di
     }
 
 
-def main(argv: list[str] | None = None) -> None:
-    """Compatibility shim for ``python -m youtube_pipeline.cyclic_detection_connector``."""
-
-    from .entrypoints.cyclic_detection_connector import main as entrypoint_main
-
-    entrypoint_main(argv)
-
-
 __all__ = [
     "CyclicDetectionConnectorConfig",
     "load_cyclic_detection_connector_config",
     "run_cyclic_detection_connector",
 ]
-
-
-if __name__ == "__main__":
-    main()

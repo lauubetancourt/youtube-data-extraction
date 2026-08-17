@@ -495,14 +495,6 @@ def run_cyclic_orchestrator_dry_run(config: CyclicOrchestratorConfig) -> dict[st
     }
 
 
-def main(argv: list[str] | None = None) -> None:
-    """Compatibility shim for ``python -m youtube_pipeline.cyclic_orchestration``."""
-
-    from .entrypoints.cyclic_orchestration import main as entrypoint_main
-
-    entrypoint_main(argv)
-
-
 __all__ = [
     "APPROVED_CYCLE_STATES",
     "CyclicOrchestratorConfig",
@@ -511,7 +503,3 @@ __all__ = [
     "run_cyclic_orchestrator_dry_run",
     "validate_cycle_contracts",
 ]
-
-
-if __name__ == "__main__":
-    main()

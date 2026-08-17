@@ -684,20 +684,8 @@ def run_cyclic_stateful_adapter(config: CyclicStatefulAdapterConfig) -> dict[str
     }
 
 
-def main(argv: list[str] | None = None) -> None:
-    """Compatibility shim for ``python -m youtube_pipeline.cyclic_stateful_adapter``."""
-
-    from .entrypoints.cyclic_stateful_adapter import main as entrypoint_main
-
-    entrypoint_main(argv)
-
-
 __all__ = [
     "CyclicStatefulAdapterConfig",
     "load_cyclic_stateful_adapter_config",
     "run_cyclic_stateful_adapter",
 ]
-
-
-if __name__ == "__main__":
-    main()

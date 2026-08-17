@@ -733,20 +733,8 @@ def run_cyclic_daily_signals(config: CyclicDailySignalConfig) -> dict[str, Any]:
     }
 
 
-def main(argv: list[str] | None = None) -> None:
-    """Compatibility shim for ``python -m youtube_pipeline.cyclic_daily_signals``."""
-
-    from .entrypoints.cyclic_daily_signals import main as entrypoint_main
-
-    entrypoint_main(argv)
-
-
 __all__ = [
     "CyclicDailySignalConfig",
     "load_cyclic_daily_signal_config",
     "run_cyclic_daily_signals",
 ]
-
-
-if __name__ == "__main__":
-    main()
