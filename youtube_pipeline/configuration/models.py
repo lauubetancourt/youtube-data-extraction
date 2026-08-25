@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from youtube_pipeline.activity_detection import ActivityDetectionRouteConfig
 from youtube_pipeline.cleaning import CleaningConfig
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
 from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
@@ -14,7 +15,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
-from youtube_pipeline.detectors import XiaoEMAConfig
+from youtube_pipeline.detectors import XiaoEMAConfig, get_detector_names
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.rag_consumer import RagConsumerConfig
 from youtube_pipeline.rag_evidence import RagEvidenceBuildConfig
@@ -183,11 +184,17 @@ class SignalsConfig:
 class DetectionConfig:
     """Composition of implemented detector configurations."""
 
+    activity_route: ActivityDetectionRouteConfig | None = None
     connector: CyclicDetectionConnectorConfig | None = None
     xiao_ema: XiaoEMAConfig | None = None
     daily_frequency: DailyFrequencyBaselineConfig | None = None
 
     def __post_init__(self) -> None:
+        _require_optional_instance(
+            "activity_route",
+            self.activity_route,
+            ActivityDetectionRouteConfig,
+        )
         _require_optional_instance(
             "connector",
             self.connector,
@@ -203,6 +210,22 @@ class DetectionConfig:
             self.daily_frequency,
             DailyFrequencyBaselineConfig,
         )
+        if self.activity_route is not None:
+            available_detectors = get_detector_names()
+            if self.activity_route.detector_id not in available_detectors:
+                available = ", ".join(available_detectors)
+                raise ValueError(
+                    f"Unknown activity detector {self.activity_route.detector_id!r}; "
+                    f"available detectors: {available}."
+                )
+            configured_detectors = (
+                {"xiao_ema"} if self.xiao_ema is not None else set()
+            )
+            if self.activity_route.detector_id not in configured_detectors:
+                raise ValueError(
+                    "The configured activity route requires a matching detector "
+                    "configuration."
+                )
         if (
             self.connector is None
             and self.xiao_ema is None

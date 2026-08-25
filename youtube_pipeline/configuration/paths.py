@@ -390,6 +390,7 @@ def resolve_run_config_paths(
     detection = config.detection
     if detection is not None:
         detection = DetectionConfig(
+            activity_route=detection.activity_route,
             connector=(
                 _resolve_detection_connector(detection.connector, base)
                 if detection.connector is not None

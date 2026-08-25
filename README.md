@@ -26,14 +26,17 @@ This project extracts and analyzes YouTube video and comment data with the YouTu
 
 ## Setup
 
-The project environment is pinned to Python 3.12.13 in `.python-version`.
-This keeps the current detection pipeline and the RAG PoC compatible with the
-same dependency set, including `numpy==1.26.4` and `chromadb==0.5.5`.
+The active pipeline runtime is pinned to Python 3.14.3 in `.python-version`.
+`requirements-runtime.txt` is the dependency authority for the current
+pipeline, maintained scripts, and test suite. The original `requirements.txt`
+is retained as a legacy dependency snapshot for the earlier environment and
+historical notebooks; it is not the authority for the active runtime.
 
 ```bash
-python3.12 -m venv .venv
+python3.14 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install pip==26.0.1
+python -m pip install -r requirements-runtime.txt
 ```
 
 ## Playback Experiments

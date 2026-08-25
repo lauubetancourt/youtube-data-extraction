@@ -1,5 +1,9 @@
 """Typed composition models for pipeline run configuration."""
 
+from youtube_pipeline.activity_detection import (
+    ActivityDetectionRouteConfig,
+    DetectionResult,
+)
 from youtube_pipeline.detectors import XiaoEMAConfig
 
 from .loading import load_run_config, run_config_from_mapping
@@ -21,10 +25,12 @@ from .serialization import (
 )
 
 __all__ = [
+    "ActivityDetectionRouteConfig",
     "ArtifactsConfig",
     "canonical_run_config_json",
     "DataConfig",
     "DetectionConfig",
+    "DetectionResult",
     "load_run_config",
     "RagConfig",
     "ResolvedRunConfig",

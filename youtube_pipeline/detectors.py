@@ -1,32 +1,31 @@
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass, replace
 from typing import Any, Callable, Protocol
 
 import pandas as pd
 
+from youtube_pipeline.activity_signals import (
+    ActivityObservation,
+    CLOSED_INTERVAL,
+    EventWindowCommentCountSignal,
+    _align_timestamp_to_cadence as _align_timestamp_to_slide,
+    event_window_comment_count_definition,
+)
+from youtube_pipeline.activity_detection import DetectionResult
+
 
 class TriggerDetector(Protocol):
     completed_triggers: list[dict[str, Any]]
+
+    def on_observation(self, observation: ActivityObservation) -> DetectionResult:
+        ...
 
     def on_event(self, event: dict[str, Any]) -> None:
         ...
 
     def finalize(self, final_ts: pd.Timestamp | None = None) -> None:
         ...
-
-
-def _align_timestamp_to_slide(ts: pd.Timestamp, slide_td: pd.Timedelta) -> pd.Timestamp:
-    """Return the next slide boundary at-or-after ts."""
-    slide_ns = int(slide_td.value)
-    if slide_ns <= 0:
-        raise ValueError("slide_interval must be > 0.")
-    ts_ns = int(ts.value)
-    remainder = ts_ns % slide_ns
-    if remainder == 0:
-        return ts
-    return pd.Timestamp(ts_ns + (slide_ns - remainder), tz="UTC")
 
 
 def _timedelta_steps(window_td: pd.Timedelta, slide_td: pd.Timedelta, label: str) -> int:
@@ -186,8 +185,15 @@ class XiaoEMATriggerDetector:
         self.v_min = int(effective.v_min)
         self.v_extreme = int(self.v_min * effective.extreme_volume_multiplier)
 
-        self._buffer: deque[dict[str, Any]] = deque()
-        self._next_tick: pd.Timestamp | None = None
+        self.signal_definition = event_window_comment_count_definition(
+            window=effective.window_size,
+            cadence=effective.slide_interval,
+            time_basis=effective.ts_col,
+        )
+        self.signal = EventWindowCommentCountSignal(
+            definition=self.signal_definition,
+            timestamp_column=effective.ts_col,
+        )
         self._ema_fast: float | None = None
         self._ema_slow: float | None = None
         self._lock_until: pd.Timestamp | None = None
@@ -195,41 +201,71 @@ class XiaoEMATriggerDetector:
         self.completed_triggers: list[dict[str, Any]] = []
 
     def on_event(self, event: dict[str, Any]) -> None:
-        event_ts = pd.to_datetime(event.get(self.ts_col), utc=True, errors="coerce")
-        if pd.isna(event_ts):
-            return
+        self.signal.on_event(
+            event,
+            on_observation=self.on_observation,
+            on_event_accepted=self._collect_if_locked,
+        )
 
-        event_ts = pd.Timestamp(event_ts)
-        if self._next_tick is None:
-            self._next_tick = _align_timestamp_to_slide(event_ts, self.slide_td)
+    def on_observation(self, observation: ActivityObservation) -> DetectionResult:
+        """Update XIAO from an explicit activity observation."""
 
-        # Emit all completed slide steps before the current event enters the window.
-        while self._next_tick is not None and self._next_tick < event_ts:
-            self._advance_tick(self._next_tick)
-            self._next_tick += self.slide_td
+        if not isinstance(observation, ActivityObservation):
+            raise TypeError("observation must be an ActivityObservation.")
+        if observation.signal.time_basis != self.ts_col:
+            raise ValueError("Observation time_basis does not match XIAO ts_col.")
+        if pd.to_timedelta(observation.signal.window) != self.window_td:
+            raise ValueError("Observation window does not match XIAO window_size.")
+        if pd.to_timedelta(observation.signal.cadence) != self.slide_td:
+            raise ValueError("Observation cadence does not match XIAO slide_interval.")
+        if observation.signal.interval_policy != CLOSED_INTERVAL:
+            raise ValueError("XIAO reference observations must use closed intervals.")
+        numeric_value = float(observation.value)
+        if not numeric_value.is_integer() or numeric_value < 0:
+            raise ValueError("XIAO reference observations require non-negative counts.")
 
-        normalized_event = dict(event)
-        normalized_event[self.ts_col] = event_ts
-        self._buffer.append(normalized_event)
-        self._trim_buffer(event_ts)
-        self._collect_if_locked(normalized_event)
-
-        # If the event lands exactly on a slide boundary, it belongs to that step.
-        while self._next_tick is not None and self._next_tick == event_ts:
-            self._advance_tick(self._next_tick)
-            self._next_tick += self.slide_td
+        tick_ts = pd.Timestamp(observation.observation_time_utc)
+        volume = int(numeric_value)
+        active_trigger_before = self._active_trigger
+        self._advance_observation(tick_ts=tick_ts, volume=volume)
+        triggered = (
+            self._active_trigger is not None
+            and self._active_trigger is not active_trigger_before
+        )
+        strength = (
+            None
+            if self._ema_fast is None
+            or self._ema_slow is None
+            or self._ema_slow <= 0
+            else float(self._ema_fast / self._ema_slow)
+        )
+        return DetectionResult(
+            detector_id=DEFAULT_DETECTOR,
+            signal_id=observation.signal.signal_id,
+            observation_time_utc=observation.observation_time_utc,
+            triggered=triggered,
+            quality=observation.quality,
+            score=strength,
+            detector_metadata={
+                "volume": volume,
+                "ema_fast": self._ema_fast,
+                "ema_slow": self._ema_slow,
+                "strength": strength,
+                "windows_processed": self.windows_processed,
+                "warmup_complete": self.windows_processed > self.warmup_windows,
+                "cooldown_active": self._lock_until is not None,
+            },
+        )
 
     def finalize(self, final_ts: pd.Timestamp | None = None) -> None:
         if self._active_trigger is None:
             return
         self._close_trigger(final_ts)
 
-    def _advance_tick(self, tick_ts: pd.Timestamp) -> None:
+    def _advance_observation(self, *, tick_ts: pd.Timestamp, volume: int) -> None:
         if self._lock_until is not None and tick_ts >= self._lock_until:
             self._close_trigger(tick_ts)
 
-        self._trim_buffer(tick_ts)
-        volume = int(len(self._buffer))
         self.windows_processed += 1
 
         if self._ema_fast is None:
@@ -290,16 +326,6 @@ class XiaoEMATriggerDetector:
             f"Volumen actual: {volume}. "
             f"Fuerza del pico (EMA_R / EMA_L): {strength:.2f}."
         )
-
-    def _trim_buffer(self, reference_ts: pd.Timestamp) -> None:
-        left = reference_ts - self.window_td
-        while self._buffer:
-            item_ts = pd.to_datetime(
-                self._buffer[0].get(self.ts_col), utc=True, errors="coerce"
-            )
-            if pd.isna(item_ts) or pd.Timestamp(item_ts) >= left:
-                break
-            self._buffer.popleft()
 
     def _collect_if_locked(self, event: dict[str, Any]) -> None:
         if self._active_trigger is None or self._lock_until is None:

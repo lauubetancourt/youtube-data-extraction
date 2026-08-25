@@ -55,6 +55,10 @@ def _write_fixture(base: Path) -> Path:
                     }
                 },
                 "detection": {
+                    "activity_route": {
+                        "signal_id": "comment_count_event_window_120s_step_30s",
+                        "detector_id": "xiao_ema",
+                    },
                     "connector": {
                         "simulation_dir": "profile_output",
                         "canonical_dataset_path": "comments.parquet",
@@ -157,6 +161,13 @@ class CyclicPipelineEntrypointTests(unittest.TestCase):
             self.assertEqual(
                 resolved_config["simulation"]["ingestion"]["output_dir"],
                 "relocated",
+            )
+            self.assertEqual(
+                resolved_config["detection"]["activity_route"],
+                {
+                    "signal_id": "comment_count_event_window_120s_step_30s",
+                    "detector_id": "xiao_ema",
+                },
             )
             canonical = json.dumps(
                 resolved_config,

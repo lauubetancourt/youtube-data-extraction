@@ -5,6 +5,11 @@ from unittest.mock import patch
 
 import pandas as pd
 
+from youtube_pipeline.activity_detection import (
+    ActivityDetectionRouteConfig,
+    dispatch_activity_observation,
+)
+from youtube_pipeline.activity_signals import EventWindowCommentCountSignal
 from youtube_pipeline.detectors import XiaoEMAConfig, XiaoEMATriggerDetector
 from youtube_pipeline.replay import replay_events
 
@@ -51,6 +56,11 @@ class XiaoCompatibilityTests(unittest.TestCase):
         self.assertEqual(detector.fast_span_steps, 4)
         self.assertEqual(detector.slow_span_steps, 20)
         self.assertEqual(detector.v_extreme, 92)
+        self.assertEqual(
+            detector.signal_definition.signal_id,
+            "comment_count_event_window_120s_step_30s",
+        )
+        self.assertEqual(detector.signal_definition.metric, "comment_count")
 
     def test_default_xiao_detects_known_burst_without_changing_contract(self) -> None:
         detector = XiaoEMATriggerDetector(log_fn=lambda _message: None)
@@ -98,6 +108,86 @@ class XiaoCompatibilityTests(unittest.TestCase):
                     "text": "after-trigger",
                 }
             ],
+        )
+
+    def test_explicit_observation_route_preserves_xiao_decisions(self) -> None:
+        event_detector = XiaoEMATriggerDetector(log_fn=lambda _message: None)
+        observation_detector = XiaoEMATriggerDetector(log_fn=lambda _message: None)
+        signal = EventWindowCommentCountSignal(
+            definition=observation_detector.signal_definition,
+            timestamp_column=observation_detector.config.ts_col,
+        )
+        route = ActivityDetectionRouteConfig(
+            signal_id=signal.definition.signal_id,
+            detector_id="xiao_ema",
+        )
+        detection_results = []
+        start = pd.Timestamp("2026-01-01T00:00:00Z")
+        events = [
+            {
+                "event_time_utc": start + pd.Timedelta(seconds=30 * index),
+                "text": f"steady-{index}",
+            }
+            for index in range(11)
+        ]
+        events.extend(
+            {
+                "event_time_utc": start + pd.Timedelta(seconds=330),
+                "text": f"burst-{index}",
+            }
+            for index in range(50)
+        )
+        events.append(
+            {
+                "event_time_utc": start + pd.Timedelta(seconds=390),
+                "text": "after-trigger",
+            }
+        )
+
+        for event in events:
+            event_detector.on_event(event)
+            signal.on_event(
+                event,
+                on_observation=lambda observation: detection_results.append(
+                    dispatch_activity_observation(
+                        route=route,
+                        observation=observation,
+                        detectors={"xiao_ema": observation_detector},
+                    )
+                ),
+            )
+        event_detector.finalize(start + pd.Timedelta(minutes=10))
+        observation_detector.finalize(start + pd.Timedelta(minutes=10))
+
+        self.assertEqual(len(event_detector.completed_triggers), 1)
+        self.assertEqual(len(observation_detector.completed_triggers), 1)
+        event_trigger = event_detector.completed_triggers[0]
+        observation_trigger = observation_detector.completed_triggers[0]
+        for field in (
+            "trigger_time",
+            "cooldown_until",
+            "closed_at",
+            "volume",
+            "strength",
+        ):
+            with self.subTest(field=field):
+                self.assertEqual(event_trigger[field], observation_trigger[field])
+        triggered_results = [item for item in detection_results if item.triggered]
+        self.assertEqual(len(triggered_results), 1)
+        neutral_result = triggered_results[0]
+        self.assertEqual(
+            pd.Timestamp(neutral_result.observation_time_utc),
+            observation_trigger["trigger_time"],
+        )
+        self.assertEqual(neutral_result.detector_id, "xiao_ema")
+        self.assertEqual(
+            neutral_result.signal_id,
+            "comment_count_event_window_120s_step_30s",
+        )
+        self.assertAlmostEqual(neutral_result.score, observation_trigger["strength"])
+        self.assertEqual(
+            neutral_result.detector_metadata["volume"],
+            observation_trigger["volume"],
         )
 
 

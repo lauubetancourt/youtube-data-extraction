@@ -135,6 +135,7 @@ def _with_output_root(
         )
     )
     relocated_detection = DetectionConfig(
+        activity_route=detection.activity_route,
         connector=replace(
             detection.connector,
             simulation_dir=output_root,

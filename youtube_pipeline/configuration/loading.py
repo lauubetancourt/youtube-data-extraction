@@ -7,6 +7,7 @@ from dataclasses import fields, is_dataclass
 from pathlib import Path
 from typing import Any, Union, get_args, get_origin, get_type_hints
 
+from youtube_pipeline.activity_detection import ActivityDetectionRouteConfig
 from youtube_pipeline.cleaning import CleaningConfig
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
 from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
@@ -52,7 +53,12 @@ _ROOT_FIELDS = {
 _DATA_FIELDS = {"youtube_api", "local_files", "prepared_dataset", "cleaning"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter", "replay"}
 _SIGNALS_FIELDS = {"daily"}
-_DETECTION_FIELDS = {"connector", "xiao_ema", "daily_frequency"}
+_DETECTION_FIELDS = {
+    "activity_route",
+    "connector",
+    "xiao_ema",
+    "daily_frequency",
+}
 _RAG_FIELDS = {
     "evidence",
     "sidecars",
@@ -283,7 +289,20 @@ def _build_signals(payload: Any) -> SignalsConfig:
 def _build_detection(payload: Any) -> DetectionConfig:
     section = _require_object(payload, "detection")
     _reject_unknown_keys(section, _DETECTION_FIELDS, "detection")
+    activity_route = None
+    if "activity_route" in section:
+        route_payload = _require_object(
+            section["activity_route"],
+            "detection.activity_route",
+        )
+        _reject_unknown_keys(
+            route_payload,
+            {"signal_id", "detector_id"},
+            "detection.activity_route",
+        )
+        activity_route = ActivityDetectionRouteConfig(**route_payload)
     return DetectionConfig(
+        activity_route=activity_route,
         connector=(
             _build_component(
                 CyclicDetectionConnectorConfig,
