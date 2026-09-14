@@ -23,6 +23,15 @@ from youtube_pipeline.detectors import (
     get_detector_names,
 )
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
+from youtube_pipeline.polarization_measures import (
+    EMD_POL_MEASURE,
+    ESTEBAN_RAY_MEASURE,
+    MEC_MEASURE,
+    EMDPolConfig,
+    EstebanRayConfig,
+    MECConfig,
+    get_polarization_measure_names,
+)
 from youtube_pipeline.rag_consumer import RagConsumerConfig
 from youtube_pipeline.rag_evidence import RagEvidenceBuildConfig
 from youtube_pipeline.rag_generation_g1 import RagG1Config
@@ -261,6 +270,54 @@ class DetectionConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class PolarizationConfig:
+    """Select one isolated formal measure and its typed public parameters."""
+
+    measure_id: str
+    esteban_ray: EstebanRayConfig | None = None
+    emd_pol: EMDPolConfig | None = None
+    mec: MECConfig | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.measure_id, str):
+            raise TypeError("measure_id must be a string.")
+        available_measures = get_polarization_measure_names()
+        if self.measure_id not in available_measures:
+            available = ", ".join(available_measures)
+            raise ValueError(
+                f"Unknown polarization measure {self.measure_id!r}; available "
+                f"measures: {available}."
+            )
+        _require_optional_instance(
+            "esteban_ray",
+            self.esteban_ray,
+            EstebanRayConfig,
+        )
+        _require_optional_instance("emd_pol", self.emd_pol, EMDPolConfig)
+        _require_optional_instance("mec", self.mec, MECConfig)
+        selected_config = {
+            ESTEBAN_RAY_MEASURE: self.esteban_ray,
+            EMD_POL_MEASURE: self.emd_pol,
+            MEC_MEASURE: self.mec,
+        }[self.measure_id]
+        if selected_config is None:
+            raise ValueError(
+                "The selected polarization measure requires a matching "
+                "configuration block."
+            )
+
+    @property
+    def selected_config(self) -> EstebanRayConfig | EMDPolConfig | MECConfig:
+        selected = {
+            ESTEBAN_RAY_MEASURE: self.esteban_ray,
+            EMD_POL_MEASURE: self.emd_pol,
+            MEC_MEASURE: self.mec,
+        }[self.measure_id]
+        assert selected is not None
+        return selected
+
+
+@dataclass(frozen=True, slots=True)
 class RagConfig:
     """Composition of implemented RAG-stage configurations."""
 
@@ -329,6 +386,7 @@ class RunConfig:
     simulation: SimulationConfig | None = None
     signals: SignalsConfig | None = None
     detection: DetectionConfig | None = None
+    polarization: PolarizationConfig | None = None
     rag: RagConfig | None = None
     artifacts: ArtifactsConfig | None = None
 
@@ -339,6 +397,11 @@ class RunConfig:
         _require_optional_instance("simulation", self.simulation, SimulationConfig)
         _require_optional_instance("signals", self.signals, SignalsConfig)
         _require_optional_instance("detection", self.detection, DetectionConfig)
+        _require_optional_instance(
+            "polarization",
+            self.polarization,
+            PolarizationConfig,
+        )
         _require_optional_instance("rag", self.rag, RagConfig)
         _require_optional_instance("artifacts", self.artifacts, ArtifactsConfig)
         if all(
@@ -348,6 +411,7 @@ class RunConfig:
                 self.simulation,
                 self.signals,
                 self.detection,
+                self.polarization,
                 self.rag,
             )
         ):

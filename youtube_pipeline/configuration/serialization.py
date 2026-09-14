@@ -32,6 +32,7 @@ from youtube_pipeline.storage import LocalFilesConfig
 from .models import (
     DataConfig,
     DetectionConfig,
+    PolarizationConfig,
     RunConfig,
     SignalsConfig,
     SimulationConfig,
@@ -101,7 +102,8 @@ _OMITTED_NONE_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     DetectionConfig: frozenset(
         {"activity_route", "xiao_ema", "page_hinkley", "adwin"}
     ),
-    RunConfig: frozenset({"data", "rag", "artifacts"}),
+    PolarizationConfig: frozenset({"esteban_ray", "emd_pol", "mec"}),
+    RunConfig: frozenset({"data", "polarization", "rag", "artifacts"}),
     SignalsConfig: frozenset({"daily", "activity"}),
     SimulationConfig: frozenset({"replay"}),
 }

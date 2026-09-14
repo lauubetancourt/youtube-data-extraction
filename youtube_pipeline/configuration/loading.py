@@ -22,6 +22,11 @@ from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
 from youtube_pipeline.detectors import ADWINConfig, PageHinkleyConfig, XiaoEMAConfig
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
+from youtube_pipeline.polarization_measures import (
+    EMDPolConfig,
+    EstebanRayConfig,
+    MECConfig,
+)
 from youtube_pipeline.rag_consumer import RagConsumerConfig
 from youtube_pipeline.rag_evidence import RagEvidenceBuildConfig
 from youtube_pipeline.rag_generation_g1 import RagG1Config
@@ -35,6 +40,7 @@ from .models import (
     ArtifactsConfig,
     DataConfig,
     DetectionConfig,
+    PolarizationConfig,
     RagConfig,
     RunConfig,
     RunIdentityConfig,
@@ -48,6 +54,7 @@ _ROOT_FIELDS = {
     "simulation",
     "signals",
     "detection",
+    "polarization",
     "rag",
     "artifacts",
 }
@@ -62,6 +69,7 @@ _DETECTION_FIELDS = {
     "adwin",
     "daily_frequency",
 }
+_POLARIZATION_FIELDS = {"measure_id", "esteban_ray", "emd_pol", "mec"}
 _RAG_FIELDS = {
     "evidence",
     "sidecars",
@@ -361,6 +369,46 @@ def _build_detection(payload: Any) -> DetectionConfig:
     )
 
 
+def _build_polarization(payload: Any) -> PolarizationConfig:
+    section = _require_object(payload, "polarization")
+    _reject_unknown_keys(section, _POLARIZATION_FIELDS, "polarization")
+    if "measure_id" not in section:
+        raise ValueError("polarization.measure_id is required.")
+    measure_id = section["measure_id"]
+    if not isinstance(measure_id, str):
+        raise TypeError("polarization.measure_id must be a string.")
+    return PolarizationConfig(
+        measure_id=measure_id,
+        esteban_ray=(
+            _build_component(
+                EstebanRayConfig,
+                section["esteban_ray"],
+                "polarization.esteban_ray",
+            )
+            if "esteban_ray" in section
+            else None
+        ),
+        emd_pol=(
+            _build_component(
+                EMDPolConfig,
+                section["emd_pol"],
+                "polarization.emd_pol",
+            )
+            if "emd_pol" in section
+            else None
+        ),
+        mec=(
+            _build_component(
+                MECConfig,
+                section["mec"],
+                "polarization.mec",
+            )
+            if "mec" in section
+            else None
+        ),
+    )
+
+
 def _build_rag(payload: Any) -> RagConfig:
     section = _require_object(payload, "rag")
     _reject_unknown_keys(section, _RAG_FIELDS, "rag")
@@ -436,6 +484,11 @@ def run_config_from_mapping(
         detection=(
             _build_detection(root["detection"])
             if "detection" in root
+            else None
+        ),
+        polarization=(
+            _build_polarization(root["polarization"])
+            if "polarization" in root
             else None
         ),
         rag=(

@@ -12,6 +12,8 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 requests==2.33.1
 river==0.26.1
+# Alpha research dependency pinned to the exact implementation audited here.
+measures @ git+https://github.com/Ulvenforst/pol_measures.git@1efd4fe3f083e478cb91a6f3ca078cad01386a80
 scipy==1.18.1
 six==1.17.0
 streamz==0.6.6

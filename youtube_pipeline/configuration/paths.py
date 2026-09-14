@@ -407,6 +407,8 @@ def resolve_run_config_paths(
             )
         )
 
+    polarization = config.polarization
+
     rag = config.rag
     if rag is not None:
         rag = RagConfig(
@@ -471,6 +473,7 @@ def resolve_run_config_paths(
         simulation=simulation,
         signals=signals,
         detection=detection,
+        polarization=polarization,
         rag=rag,
         artifacts=config.artifacts,
     )

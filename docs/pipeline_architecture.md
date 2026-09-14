@@ -184,6 +184,24 @@ retrospective and daily event records remain the active compatibility contracts.
 See [activity signal semantics](activity_signal_semantics.md) for the normative A6
 details.
 
+## Formal polarization-measure boundary
+
+The implemented non-temporal polarization boundary is independent of activity
+detection:
+
+```text
+OpinionDistribution
+→ PolarizationMeasure adapter
+→ pinned pol_measures implementation
+→ PolarizationMeasurement
+```
+
+`EstebanRayAdapter`, `EMDPolAdapter`, and `MECAdapter` receive the same complete
+Likert-5 positions and normalized author-mass weights. They do not classify
+comments, aggregate authors, create windows, or emit detector input. Selection
+and public method parameters are typed under `RunConfig.polarization`. See
+[formal polarization measures](polarization_measures.md).
+
 ## XIAO reference path
 
 XIAO EMA is both `REFERENCE_DETECTOR` and `REGRESSION_ANCHOR`; it is not the final

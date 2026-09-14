@@ -39,6 +39,13 @@ are available for composition, synthetic tests, and the technical cyclic activit
 runtime. Their development profiles and technical defaults are not calibrated or
 validated event-detection choices.
 
+Formal polarization measures are available for isolated, validated
+`OpinionDistribution` inputs through neutral adapters for Esteban-Ray, EMDPol,
+and MEC. The alpha `pol_measures` dependency is pinned to its audited Git commit;
+its library defaults are integration defaults, not calibrated project choices.
+This layer does not yet classify comments, build temporal polarization signals,
+or connect polarization values to detectors.
+
 ## Main execution paths
 
 Versionable JSON profiles and the common resolver are the preferred interface for
@@ -107,6 +114,15 @@ YouTube API or local files
 → G-1 internal validation / G-2 external validation
 ```
 
+The independent future polarization path currently stops at its formal measure:
+
+```text
+CommentStance (contract/design only)
+→ OpinionDistribution
+→ configured polarization measure
+→ PolarizationMeasurement
+```
+
 XIAO EMA is the current reference detector and regression anchor. It is not a
 commitment to the final detector. The daily frequency baseline remains a separate
 implemented route and has not yet been migrated to the neutral
@@ -134,6 +150,7 @@ contracts.
 | End-to-end architecture and implementation status | [`docs/pipeline_architecture.md`](docs/pipeline_architecture.md) |
 | Data layers, canonical fields, time, IDs, and deduplication | [`docs/data_contracts.md`](docs/data_contracts.md) |
 | Activity metrics, signals, observations, detection results, and candidates | [`docs/activity_signal_semantics.md`](docs/activity_signal_semantics.md) |
+| Opinion distributions and formal polarization measures | [`docs/polarization_measures.md`](docs/polarization_measures.md) |
 | Candidate/evidence/RAG preparation boundary | [`docs/rag_event_evidence_contract.md`](docs/rag_event_evidence_contract.md) |
 | Profiles, `RunConfig`, resolved paths, hashes, and identities | [`configs/README.md`](configs/README.md) |
 | Hierarchical G-2 implementation | [`docs/rag_g2_hierarchical_implementation.md`](docs/rag_g2_hierarchical_implementation.md) |
