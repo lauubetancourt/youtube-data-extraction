@@ -454,14 +454,34 @@ valida metodológicamente la señal o los parámetros. La escala de cada señal 
 evaluarse antes de calibrar ADWIN. XIAO continúa como
 `REFERENCE_DETECTOR` y `REGRESSION_ANCHOR`, no como compromiso de detector final.
 
-### Backlog posterior a A6-8E
+La selección de productor también es neutral en el runtime. Un registry explícito
+de factories resuelve `ActivitySignalDefinition.signal_id` y crea estado nuevo por
+ejecución para las dos familias de señal implementadas:
+
+```text
+comment_count_event_window_120s_step_30s
+unique_author_count_event_window_120s_step_30s
+```
+
+Ambas producen el mismo contrato `ActivityObservation` y pueden alimentar tanto
+Page-Hinkley como ADWIN sin branching por combinación. La definición resuelta sigue
+siendo autoridad de ventana, cadencia y base temporal; el ID coherente derivado de
+esos parámetros continúa resolviendo la misma familia registrada. El paso cíclico conserva
+`author_id` como atributo opcional para que la señal de autores aplique su política
+documentada; no lo convierte en requisito de la señal de comentarios ni resuelve
+la selección futura de preprocessing.
+
+### Backlog posterior a SIGNAL-RUNTIME-REGISTRY-01
 
 - **RESOLVED:** integración técnica de Page-Hinkley; integración técnica de ADWIN;
-  `CYCLIC-DETECTION-RUNTIME`.
-- **NEXT:** `USABILITY-EXPERIMENT-01`.
+  `CYCLIC-DETECTION-RUNTIME`; selección runtime de `comment_count` y
+  `unique_author_count` mediante configuración.
+- **READY WITH MINOR DEBT:** `USABILITY-EXPERIMENT-01` para las señales y detectores
+  actualmente implementados.
 - **OPEN:** `PREPROCESSING-EVAL`; diseño e integración de señales de polarización;
   semántica de fingerprint experimental y `config_hash`; handoff runtime hacia
-  `EventCandidate`.
+  `EventCandidate`; consolidación de configuración de dataset; manifest unificado;
+  aislamiento de outputs por `run_id`; duplicación de perfiles.
 - **DEFERRED / CONDITIONAL:** KSWIN, solo ante una señal o caso donde el cambio
   distribucional aporte información que Page-Hinkley y ADWIN no representen.
 - **DEFERRED:** estudio específico de XIAO; estudio del baseline diario;

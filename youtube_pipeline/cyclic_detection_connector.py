@@ -16,7 +16,7 @@ from .activity_detection import (
 from .activity_signals import (
     ActivityObservation,
     ActivitySignalDefinition,
-    EventWindowCommentCountSignal,
+    create_activity_signal,
 )
 from .detectors import XiaoEMAConfig, create_detector
 from .monitoring import default_activity_metrics, default_polarization_metrics
@@ -1043,11 +1043,6 @@ def run_cyclic_activity_detection_runtime(
         raise TypeError("signal_definition must be an ActivitySignalDefinition.")
     if route.signal_id != signal_definition.signal_id:
         raise ValueError("Activity route signal_id must match the signal definition.")
-    if signal_definition.metric != "comment_count":
-        raise ValueError(
-            "The initial cyclic activity runtime supports only comment_count."
-        )
-
     simulation_dir = config.simulation_path()
     output_dir = config.output_path()
     adapter_manifest = _read_json(simulation_dir / "cycle_adapter_manifest.json")
@@ -1071,10 +1066,7 @@ def run_cyclic_activity_detection_runtime(
         max_cycles=config.max_cycles,
     )
     detector = create_detector(name=route.detector_id, config=detector_config)
-    signal = EventWindowCommentCountSignal(
-        definition=signal_definition,
-        timestamp_column=signal_definition.time_basis,
-    )
+    signal = create_activity_signal(signal_definition)
     detectors = {route.detector_id: detector}
 
     seen_comment_ids: set[str] = set()

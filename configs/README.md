@@ -183,6 +183,24 @@ Use `development/cyclic_activity_adwin.json` for the equivalent ADWIN run. Both
 write `activity_detection_results.jsonl` below an
 `activity_detection_runtime/` subdirectory and do not run the daily baseline.
 
+The activity producer is also selected from JSON. The runtime registry currently
+accepts these two implemented signal families (shown with their development
+profile identities):
+
+```text
+comment_count_event_window_120s_step_30s
+unique_author_count_event_window_120s_step_30s
+```
+
+To switch signals, keep `signals.activity.signal_id` and
+`detection.activity_route.signal_id` equal and supply the matching signal semantics
+(`metric="unique_authors"` and `unit="authors/window"` for the unique-author
+signal). Window, cadence and time basis remain owned by `signals.activity`; the
+connector does not override them. Missing `author_id` values remain in
+`support_count`, do not contribute to the unique-author value, and produce
+`quality="degraded_missing_author_id"`. These are experimental runtime signals,
+not calibrated or methodologically validated choices.
+
 ### `compatibility/cyclic_current.json`
 
 Represents the migrated cyclic compatibility execution:

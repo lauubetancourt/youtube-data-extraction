@@ -5,6 +5,7 @@ import re
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import partial
 from numbers import Integral, Real
 from typing import Any, Callable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -368,17 +369,107 @@ class EventWindowCommentCountSignal(EventWindowActivitySignal):
         )
 
 
+ActivitySignalFactory = Callable[
+    [ActivitySignalDefinition],
+    EventWindowActivitySignal,
+]
+
+
+def _create_comment_count_signal(
+    definition: ActivitySignalDefinition,
+) -> EventWindowActivitySignal:
+    return EventWindowCommentCountSignal(
+        definition=definition,
+        timestamp_column=definition.time_basis,
+    )
+
+
+def _create_unique_author_count_signal(
+    definition: ActivitySignalDefinition,
+) -> EventWindowActivitySignal:
+    if definition.metric != "unique_authors":
+        raise ValueError(
+            "The unique-author activity signal requires metric='unique_authors'."
+        )
+    return EventWindowActivitySignal(
+        definition=definition,
+        timestamp_column=definition.time_basis,
+        measurement=partial(
+            unique_author_count_measurement,
+            author_column="author_id",
+        ),
+    )
+
+
+COMMENT_COUNT_SIGNAL_ID = "comment_count_event_window_120s_step_30s"
+UNIQUE_AUTHOR_COUNT_SIGNAL_ID = (
+    "unique_author_count_event_window_120s_step_30s"
+)
+ACTIVITY_SIGNAL_REGISTRY: dict[str, ActivitySignalFactory] = {
+    COMMENT_COUNT_SIGNAL_ID: _create_comment_count_signal,
+    UNIQUE_AUTHOR_COUNT_SIGNAL_ID: _create_unique_author_count_signal,
+}
+
+
+def get_activity_signal_ids() -> tuple[str, ...]:
+    """Return canonical IDs for activity signal families available at runtime."""
+
+    return tuple(sorted(ACTIVITY_SIGNAL_REGISTRY))
+
+
+def _activity_signal_registry_key(
+    definition: ActivitySignalDefinition,
+) -> str:
+    registered_families = (
+        (COMMENT_COUNT_SIGNAL_ID, event_window_comment_count_definition),
+        (
+            UNIQUE_AUTHOR_COUNT_SIGNAL_ID,
+            event_window_unique_author_count_definition,
+        ),
+    )
+    for registry_key, definition_factory in registered_families:
+        expected = definition_factory(
+            window=definition.window,
+            cadence=definition.cadence,
+            time_basis=definition.time_basis,
+        )
+        if definition.signal_id == expected.signal_id:
+            return registry_key
+    available = ", ".join(get_activity_signal_ids())
+    raise ValueError(
+        f"Unknown activity signal {definition.signal_id!r}; "
+        f"available signal families: {available}."
+    )
+
+
+def create_activity_signal(
+    definition: ActivitySignalDefinition,
+) -> EventWindowActivitySignal:
+    """Create fresh incremental state for one registered signal definition."""
+
+    if not isinstance(definition, ActivitySignalDefinition):
+        raise TypeError("definition must be an ActivitySignalDefinition.")
+    factory = ACTIVITY_SIGNAL_REGISTRY[_activity_signal_registry_key(definition)]
+    return factory(definition)
+
+
 __all__ = [
+    "ACTIVITY_SIGNAL_REGISTRY",
     "ActivityObservation",
+    "ActivitySignalFactory",
     "ActivitySignalDefinition",
     "ActivityWindowMeasurement",
     "CLOSED_INTERVAL",
+    "COMMENT_COUNT_SIGNAL_ID",
     "EventWindowActivitySignal",
     "EventWindowCommentCountSignal",
     "LEFT_CLOSED_RIGHT_OPEN_INTERVAL",
     "SUPPORTED_INTERVAL_POLICIES",
+    "UNIQUE_AUTHOR_COUNT_SIGNAL_ID",
     "comment_count_measurement",
+    "create_activity_signal",
     "event_window_comment_count_definition",
     "event_window_unique_author_count_definition",
+    "get_activity_signal_ids",
     "unique_author_count_measurement",
 ]

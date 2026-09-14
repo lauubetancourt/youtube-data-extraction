@@ -67,6 +67,13 @@ Replace the profile with `configs/development/cyclic_activity_adwin.json` to use
 ADWIN without changing Python. Both profiles use a synthetic provisional input and
 stop at persisted `DetectionResult` envelopes.
 
+The same activity runtime selects either registered signal through
+`signals.activity.signal_id`: the current explicit surface contains
+`comment_count_event_window_120s_step_30s` and
+`unique_author_count_event_window_120s_step_30s`. Both signals can be combined with
+Page-Hinkley or ADWIN through JSON routing. This is technical runtime support, not
+methodological validation of either signal or detector configuration.
+
 Current non-generative daily RAG flow:
 
 ```bash
