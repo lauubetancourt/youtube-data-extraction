@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from youtube_pipeline.activity_detection import ActivityDetectionRouteConfig
+from youtube_pipeline.activity_signals import ActivitySignalDefinition
 from youtube_pipeline.cleaning import CleaningConfig
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
 from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
@@ -178,10 +179,16 @@ class SignalsConfig:
     """Composition of implemented signal configurations."""
 
     daily: CyclicDailySignalConfig | None = None
+    activity: ActivitySignalDefinition | None = None
 
     def __post_init__(self) -> None:
         _require_optional_instance("daily", self.daily, CyclicDailySignalConfig)
-        if self.daily is None:
+        _require_optional_instance(
+            "activity",
+            self.activity,
+            ActivitySignalDefinition,
+        )
+        if self.daily is None and self.activity is None:
             raise ValueError("SignalsConfig must configure at least one signal stage.")
 
 

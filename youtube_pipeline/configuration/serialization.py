@@ -29,7 +29,13 @@ from youtube_pipeline.rag_sidecars import RagSidecarBuildConfig
 from youtube_pipeline.rag_validation import RagValidationPrepareConfig
 from youtube_pipeline.storage import LocalFilesConfig
 
-from .models import DataConfig, DetectionConfig, RunConfig, SimulationConfig
+from .models import (
+    DataConfig,
+    DetectionConfig,
+    RunConfig,
+    SignalsConfig,
+    SimulationConfig,
+)
 
 _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     CleaningConfig: frozenset({"input_path", "output_path"}),
@@ -96,6 +102,7 @@ _OMITTED_NONE_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
         {"activity_route", "xiao_ema", "page_hinkley", "adwin"}
     ),
     RunConfig: frozenset({"data", "rag", "artifacts"}),
+    SignalsConfig: frozenset({"daily", "activity"}),
     SimulationConfig: frozenset({"replay"}),
 }
 

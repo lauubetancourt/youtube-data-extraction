@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Union, get_args, get_origin, get_type_hints
 
 from youtube_pipeline.activity_detection import ActivityDetectionRouteConfig
+from youtube_pipeline.activity_signals import ActivitySignalDefinition
 from youtube_pipeline.cleaning import CleaningConfig
 from youtube_pipeline.cyclic_daily_signals import CyclicDailySignalConfig
 from youtube_pipeline.cyclic_detection_connector import CyclicDetectionConnectorConfig
@@ -52,7 +53,7 @@ _ROOT_FIELDS = {
 }
 _DATA_FIELDS = {"youtube_api", "local_files", "prepared_dataset", "cleaning"}
 _SIMULATION_FIELDS = {"ingestion", "orchestration", "stateful_adapter", "replay"}
-_SIGNALS_FIELDS = {"daily"}
+_SIGNALS_FIELDS = {"daily", "activity"}
 _DETECTION_FIELDS = {
     "activity_route",
     "connector",
@@ -284,7 +285,14 @@ def _build_signals(payload: Any) -> SignalsConfig:
             )
             if "daily" in section
             else None
-        )
+        ),
+        activity=(
+            ActivitySignalDefinition(
+                **_require_object(section["activity"], "signals.activity")
+            )
+            if "activity" in section
+            else None
+        ),
     )
 
 

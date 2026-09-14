@@ -13,6 +13,7 @@ from youtube_pipeline.configuration import (
     run_config_from_mapping,
 )
 from youtube_pipeline.cyclic_detection_connector import (
+    ACTIVITY_DETECTION_RUNTIME_MODE,
     CyclicDetectionConnectorConfig,
     run_cyclic_detection_connector,
 )
@@ -106,7 +107,22 @@ def resolve_cyclic_detection_config(
     resolved = resolve_run_config(run, base_dir=base_dir).config
     if resolved.detection is None or resolved.detection.connector is None:
         raise ValueError("RunConfig must include detection.connector for this entrypoint.")
-    if resolved.detection.xiao_ema is None:
+    connector = resolved.detection.connector
+    if connector.mode == ACTIVITY_DETECTION_RUNTIME_MODE:
+        if resolved.detection.activity_route is None:
+            raise ValueError(
+                "activity_detection_runtime requires detection.activity_route."
+            )
+        selected_config = getattr(
+            resolved.detection,
+            resolved.detection.activity_route.detector_id,
+            None,
+        )
+        if selected_config is None:
+            raise ValueError(
+                "activity_detection_runtime requires the selected detector config."
+            )
+    elif resolved.detection.xiao_ema is None:
         raise ValueError("RunConfig must include detection.xiao_ema for this entrypoint.")
     return resolved.detection
 
@@ -172,6 +188,11 @@ def main(argv: list[str] | None = None) -> None:
             base_dir=Path.cwd(),
         )
         assert detection.connector is not None
+        if detection.connector.mode == ACTIVITY_DETECTION_RUNTIME_MODE:
+            raise ValueError(
+                "activity_detection_runtime requires the full cyclic-pipeline "
+                "entrypoint so the signal definition and run identity remain resolved."
+            )
         assert detection.xiao_ema is not None
         summary = run_cyclic_detection_connector(
             detection.connector,

@@ -327,17 +327,17 @@ and do not treat those locations as scientific authorities.
 | Comment-count signal | IMPLEMENTED_AND_ACTIVE | XIAO reference input |
 | Unique-author signal | IMPLEMENTED_NOT_YET_CONNECTED | Implemented/tested experimental signal; not a default profile |
 | `ActivityObservation` | IMPLEMENTED_AND_ACTIVE | Consumed by XIAO's neutral method |
-| Signal→detector routing | IMPLEMENTED_NOT_YET_CONNECTED | Configurable and tested; not the general cyclic runtime dispatch |
+| Signal→detector routing | IMPLEMENTED_AND_ACTIVE | Used by the technical cyclic activity runtime; compatibility paths remain separate |
 | XIAO EMA | REFERENCE_COMPATIBILITY | Active reference detector and historical trigger lifecycle |
-| `DetectionResult` | IMPLEMENTED_NOT_YET_CONNECTED | Produced by XIAO but not persisted/promoted by the historical path |
+| `DetectionResult` | IMPLEMENTED_AND_ACTIVE | Persisted as neutral runtime envelopes; historical XIAO persistence remains separate |
 | `EventCandidate` | IMPLEMENTED_NOT_YET_CONNECTED | Internal contract and compatibility projection tested |
 | Daily frequency baseline | IMPLEMENTED_AND_ACTIVE | Specialized daily point-candidate path |
 | Retrospective RAG evidence/sidecars | IMPLEMENTED_AND_ACTIVE | Current reference contracts |
 | Daily RAG sidecars/consumer/selection | IMPLEMENTED_AND_ACTIVE | Non-generative daily chain |
 | G-1/G-2 and hierarchical G-2 | IMPLEMENTED_AND_ACTIVE | Local dry-run and configured external execution paths |
 | River 0.26.1 | IMPLEMENTED_AND_AVAILABLE | Reproducible dependency encapsulated by neutral detector adapters |
-| Page-Hinkley adapter | IMPLEMENTED_NOT_YET_CONNECTED | Neutral config, registry, routing and contracts tested; absent from cyclic execution and uncalibrated |
-| ADWIN adapter | IMPLEMENTED_NOT_YET_CONNECTED | Adaptive detector config, registry, routing and contracts tested; absent from cyclic execution and uncalibrated |
+| Page-Hinkley adapter | IMPLEMENTED_AND_ACTIVE | Selectable in the technical cyclic activity runtime; uncalibrated |
+| ADWIN adapter | IMPLEMENTED_AND_ACTIVE | Selectable in the same technical cyclic activity runtime; uncalibrated |
 | KSWIN adapter | DEFERRED_CONDITIONAL | Requires a concrete distribution-change use case not represented by Page-Hinkley or ADWIN |
 | True online ingestion | DEFERRED | Requires A9 contracts and operational state |
 | Durable checkpoint/restore | DEFERRED | Current detector state is in-memory or report-oriented |

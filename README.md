@@ -35,9 +35,9 @@ python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 River 0.26.1 is installed reproducibly. Neutral Page-Hinkley and ADWIN adapters
-are available for composition and synthetic tests. They are not connected to
-cyclic execution and their technical defaults are not validated event-detection
-parameters.
+are available for composition, synthetic tests, and the technical cyclic activity
+runtime. Their development profiles and technical defaults are not calibrated or
+validated event-detection choices.
 
 ## Main execution paths
 
@@ -53,6 +53,19 @@ Current cyclic compatibility flow:
   --output-root outputs/cyclic_current \
   --dry-run
 ```
+
+Technical neutral-detector profiles:
+
+```bash
+.venv/bin/python scripts/run_cyclic_pipeline.py \
+  --config configs/development/cyclic_activity_page_hinkley.json \
+  --output-root outputs/cyclic_activity_page_hinkley \
+  --dry-run
+```
+
+Replace the profile with `configs/development/cyclic_activity_adwin.json` to use
+ADWIN without changing Python. Both profiles use a synthetic provisional input and
+stop at persisted `DetectionResult` envelopes.
 
 Current non-generative daily RAG flow:
 

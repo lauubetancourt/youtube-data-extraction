@@ -384,7 +384,8 @@ def resolve_run_config_paths(
                 _resolve_daily_signals(signals.daily, base)
                 if signals.daily is not None
                 else None
-            )
+            ),
+            activity=signals.activity,
         )
 
     detection = config.detection

@@ -445,17 +445,23 @@ incluye `width`, `estimation` y `variance`, pero estas magnitudes no se conviert
 un score común. Ante un drift, ADWIN contrae la ventana en esa actualización; en la
 siguiente, River reinicia el detector conforme al lifecycle público de esta versión.
 
-Ambas integraciones están disponibles para composición y pruebas sintéticas, pero
-no están conectadas a la ejecución cíclica ni validadas metodológicamente. La escala
-de cada señal deberá evaluarse antes de calibrar ADWIN. XIAO continúa como
+Ambas integraciones están conectadas al runtime cíclico técnico mediante la misma
+ruta neutral. El runtime conserva una instancia de señal y una de detector entre
+observaciones y ciclos, y persiste envelopes en
+`activity_detection_results.jsonl`. La fuente de este plumbing se registra como
+`PROVISIONAL_RUNTIME_INPUT`: no resuelve qué vista de preprocessing es adecuada ni
+valida metodológicamente la señal o los parámetros. La escala de cada señal deberá
+evaluarse antes de calibrar ADWIN. XIAO continúa como
 `REFERENCE_DETECTOR` y `REGRESSION_ANCHOR`, no como compromiso de detector final.
 
-### Backlog posterior a A6-8D
+### Backlog posterior a A6-8E
 
-- **RESOLVED:** integración técnica de Page-Hinkley; integración técnica de ADWIN.
-- **OPEN:** `CYCLIC-DETECTION-RUNTIME`; `USABILITY-EXPERIMENT-01`;
-  `PREPROCESSING-EVAL`; semántica de fingerprint experimental y `config_hash`;
-  diseño e integración de señales de polarización.
+- **RESOLVED:** integración técnica de Page-Hinkley; integración técnica de ADWIN;
+  `CYCLIC-DETECTION-RUNTIME`.
+- **NEXT:** `USABILITY-EXPERIMENT-01`.
+- **OPEN:** `PREPROCESSING-EVAL`; diseño e integración de señales de polarización;
+  semántica de fingerprint experimental y `config_hash`; handoff runtime hacia
+  `EventCandidate`.
 - **DEFERRED / CONDITIONAL:** KSWIN, solo ante una señal o caso donde el cambio
   distribucional aporte información que Page-Hinkley y ADWIN no representen.
 - **DEFERRED:** estudio específico de XIAO; estudio del baseline diario;

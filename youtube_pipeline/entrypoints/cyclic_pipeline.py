@@ -17,6 +17,7 @@ from youtube_pipeline.configuration import (
 )
 from youtube_pipeline.cyclic_daily_signals import run_cyclic_daily_signals
 from youtube_pipeline.cyclic_detection_connector import (
+    ACTIVITY_DETECTION_RUNTIME_MODE,
     DETECTION_CONNECTOR_MODE,
     run_cyclic_detection_connector,
 )
@@ -82,24 +83,26 @@ def _with_output_root(
             "The cyclic runner requires simulation.orchestration and "
             "simulation.stateful_adapter."
         )
-    if signals is None or signals.daily is None:
-        raise ValueError("The cyclic runner requires signals.daily.")
+    if signals is None:
+        raise ValueError("The cyclic runner requires signals configuration.")
     if detection is None or detection.connector is None:
         raise ValueError("The cyclic runner requires detection.connector.")
-    if detection.daily_frequency is None:
-        raise ValueError("The cyclic runner requires detection.daily_frequency.")
 
     shared_simulation_paths = {
         "simulation.orchestration.simulation_dir": simulation.orchestration.simulation_dir,
         "simulation.stateful_adapter.simulation_dir": (
             simulation.stateful_adapter.simulation_dir
         ),
-        "signals.daily.simulation_dir": signals.daily.simulation_dir,
         "detection.connector.simulation_dir": detection.connector.simulation_dir,
-        "detection.daily_frequency.simulation_dir": (
-            detection.daily_frequency.simulation_dir
-        ),
     }
+    if signals.daily is not None:
+        shared_simulation_paths["signals.daily.simulation_dir"] = (
+            signals.daily.simulation_dir
+        )
+    if detection.daily_frequency is not None:
+        shared_simulation_paths["detection.daily_frequency.simulation_dir"] = (
+            detection.daily_frequency.simulation_dir
+        )
     mismatched = [
         name
         for name, value in shared_simulation_paths.items()
@@ -123,16 +126,21 @@ def _with_output_root(
         ),
     )
     relocated_signals = SignalsConfig(
-        daily=replace(
-            signals.daily,
-            simulation_dir=output_root,
-            output_dir=_relocate_optional_output(
-                signals.daily.output_dir,
-                previous_root=previous_root,
-                output_root=output_root,
-                field_name="signals.daily.output_dir",
-            ),
-        )
+        daily=(
+            replace(
+                signals.daily,
+                simulation_dir=output_root,
+                output_dir=_relocate_optional_output(
+                    signals.daily.output_dir,
+                    previous_root=previous_root,
+                    output_root=output_root,
+                    field_name="signals.daily.output_dir",
+                ),
+            )
+            if signals.daily is not None
+            else None
+        ),
+        activity=signals.activity,
     )
     relocated_detection = DetectionConfig(
         activity_route=detection.activity_route,
@@ -147,15 +155,21 @@ def _with_output_root(
             ),
         ),
         xiao_ema=detection.xiao_ema,
-        daily_frequency=replace(
-            detection.daily_frequency,
-            simulation_dir=output_root,
-            output_dir=_relocate_optional_output(
-                detection.daily_frequency.output_dir,
-                previous_root=previous_root,
-                output_root=output_root,
-                field_name="detection.daily_frequency.output_dir",
-            ),
+        page_hinkley=detection.page_hinkley,
+        adwin=detection.adwin,
+        daily_frequency=(
+            replace(
+                detection.daily_frequency,
+                simulation_dir=output_root,
+                output_dir=_relocate_optional_output(
+                    detection.daily_frequency.output_dir,
+                    previous_root=previous_root,
+                    output_root=output_root,
+                    field_name="detection.daily_frequency.output_dir",
+                ),
+            )
+            if detection.daily_frequency is not None
+            else None
         ),
     )
     return RunConfig(
@@ -180,14 +194,10 @@ def _validate_cyclic_profile(config: RunConfig) -> None:
         missing.append("simulation.orchestration")
     if simulation is None or simulation.stateful_adapter is None:
         missing.append("simulation.stateful_adapter")
-    if signals is None or signals.daily is None:
-        missing.append("signals.daily")
+    if signals is None:
+        missing.append("signals")
     if detection is None or detection.connector is None:
         missing.append("detection.connector")
-    if detection is None or detection.xiao_ema is None:
-        missing.append("detection.xiao_ema")
-    if detection is None or detection.daily_frequency is None:
-        missing.append("detection.daily_frequency")
     if missing:
         raise ValueError(
             "Cyclic pipeline profile is missing required sections: "
@@ -202,10 +212,41 @@ def _validate_cyclic_profile(config: RunConfig) -> None:
         raise ValueError(
             "The current cyclic runner requires simulation.ingestion.dry_run=true."
         )
-    if detection.connector.mode != DETECTION_CONNECTOR_MODE:
+    if detection.connector.mode not in {
+        DETECTION_CONNECTOR_MODE,
+        ACTIVITY_DETECTION_RUNTIME_MODE,
+    }:
         raise ValueError(
-            "The current cyclic runner requires "
-            f"detection.connector.mode={DETECTION_CONNECTOR_MODE!r}."
+            "The cyclic runner requires detection.connector.mode to be "
+            f"{DETECTION_CONNECTOR_MODE!r} or "
+            f"{ACTIVITY_DETECTION_RUNTIME_MODE!r}."
+        )
+    if detection.connector.mode == ACTIVITY_DETECTION_RUNTIME_MODE:
+        if signals is None or signals.activity is None:
+            missing.append("signals.activity")
+        if detection.activity_route is None:
+            missing.append("detection.activity_route")
+        if (
+            signals is not None
+            and signals.activity is not None
+            and detection.activity_route is not None
+            and signals.activity.signal_id != detection.activity_route.signal_id
+        ):
+            raise ValueError(
+                "signals.activity.signal_id must match "
+                "detection.activity_route.signal_id."
+            )
+    else:
+        if signals is None or signals.daily is None:
+            missing.append("signals.daily")
+        if detection.xiao_ema is None:
+            missing.append("detection.xiao_ema")
+        if detection.daily_frequency is None:
+            missing.append("detection.daily_frequency")
+    if missing:
+        raise ValueError(
+            "Cyclic pipeline profile is missing required sections: "
+            + ", ".join(missing)
         )
 
 
@@ -252,11 +293,8 @@ def run_cyclic_pipeline(resolved: ResolvedRunConfig) -> dict[str, Any]:
     assert simulation.orchestration is not None
     assert simulation.stateful_adapter is not None
     assert signals is not None
-    assert signals.daily is not None
     assert detection is not None
     assert detection.connector is not None
-    assert detection.xiao_ema is not None
-    assert detection.daily_frequency is not None
 
     stages = {
         "ingestion": build_cyclic_ingestion_dry_run(simulation.ingestion),
@@ -266,15 +304,34 @@ def run_cyclic_pipeline(resolved: ResolvedRunConfig) -> dict[str, Any]:
         "stateful_adapter": run_cyclic_stateful_adapter(
             simulation.stateful_adapter
         ),
-        "detection_connector": run_cyclic_detection_connector(
+    }
+    if detection.connector.mode == ACTIVITY_DETECTION_RUNTIME_MODE:
+        assert signals.activity is not None
+        assert detection.activity_route is not None
+        detector_config = getattr(
+            detection,
+            detection.activity_route.detector_id,
+            None,
+        )
+        stages["detection_connector"] = run_cyclic_detection_connector(
+            detection.connector,
+            run_id=config.identity.run_id,
+            activity_route=detection.activity_route,
+            signal_definition=signals.activity,
+            detector_config=detector_config,
+        )
+    else:
+        assert signals.daily is not None
+        assert detection.xiao_ema is not None
+        assert detection.daily_frequency is not None
+        stages["detection_connector"] = run_cyclic_detection_connector(
             detection.connector,
             xiao_config=detection.xiao_ema,
-        ),
-        "daily_signals": run_cyclic_daily_signals(signals.daily),
-        "daily_frequency": run_daily_frequency_baseline(
+        )
+        stages["daily_signals"] = run_cyclic_daily_signals(signals.daily)
+        stages["daily_frequency"] = run_daily_frequency_baseline(
             detection.daily_frequency
-        ),
-    }
+        )
     run_manifest = write_run_manifest(
         resolved,
         output_dir=simulation.ingestion.output_dir,

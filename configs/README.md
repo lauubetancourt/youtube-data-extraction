@@ -157,12 +157,31 @@ ADWIN uses the same route without changing the signal's physical-time window:
 ```
 
 The Page-Hinkley and ADWIN values shown above mirror River's technical defaults;
-they are not calibrated or methodologically validated for event detection. No
-current profile selects either detector by default, and cyclic execution has not
-been connected to the neutral route. ADWIN's adaptive window counts observations
-inside the detector and does not replace `ActivitySignalDefinition.window`.
+they are not calibrated or methodologically validated for event detection. ADWIN's
+adaptive window counts observations inside the detector and does not replace
+`ActivitySignalDefinition.window`.
 
 ## Current profiles
+
+### Development cyclic activity profiles
+
+`development/cyclic_activity_page_hinkley.json` and
+`development/cyclic_activity_adwin.json` execute the same neutral activity route
+over the small synthetic fixture in `tests/fixtures/`. They differ only where the
+selected detector and its typed configuration require it. The input role is
+`PROVISIONAL_RUNTIME_INPUT`; these profiles validate plumbing, not preprocessing,
+signal selection, calibration, or event-detection validity.
+
+```bash
+.venv/bin/python scripts/run_cyclic_pipeline.py \
+  --config configs/development/cyclic_activity_page_hinkley.json \
+  --output-root outputs/cyclic_activity_page_hinkley \
+  --dry-run
+```
+
+Use `development/cyclic_activity_adwin.json` for the equivalent ADWIN run. Both
+write `activity_detection_results.jsonl` below an
+`activity_detection_runtime/` subdirectory and do not run the daily baseline.
 
 ### `compatibility/cyclic_current.json`
 
