@@ -19,7 +19,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
-from youtube_pipeline.detectors import XiaoEMAConfig
+from youtube_pipeline.detectors import PageHinkleyConfig, XiaoEMAConfig
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.rag_consumer import RagConsumerConfig
 from youtube_pipeline.rag_evidence import RagEvidenceBuildConfig
@@ -57,6 +57,7 @@ _DETECTION_FIELDS = {
     "activity_route",
     "connector",
     "xiao_ema",
+    "page_hinkley",
     "daily_frequency",
 }
 _RAG_FIELDS = {
@@ -319,6 +320,15 @@ def _build_detection(payload: Any) -> DetectionConfig:
                 "detection.xiao_ema",
             )
             if "xiao_ema" in section
+            else None
+        ),
+        page_hinkley=(
+            _build_component(
+                PageHinkleyConfig,
+                section["page_hinkley"],
+                "detection.page_hinkley",
+            )
+            if "page_hinkley" in section
             else None
         ),
         daily_frequency=(

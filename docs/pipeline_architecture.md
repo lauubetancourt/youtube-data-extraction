@@ -335,8 +335,8 @@ and do not treat those locations as scientific authorities.
 | Retrospective RAG evidence/sidecars | IMPLEMENTED_AND_ACTIVE | Current reference contracts |
 | Daily RAG sidecars/consumer/selection | IMPLEMENTED_AND_ACTIVE | Non-generative daily chain |
 | G-1/G-2 and hierarchical G-2 | IMPLEMENTED_AND_ACTIVE | Local dry-run and configured external execution paths |
-| River 0.26.1 | IMPLEMENTED_NOT_YET_CONNECTED | Reproducible dependency; no pipeline adapter |
-| Page-Hinkley adapter | DEFERRED | Technical viability shown, implementation pending approval |
+| River 0.26.1 | IMPLEMENTED_AND_AVAILABLE | Reproducible dependency encapsulated by the Page-Hinkley adapter |
+| Page-Hinkley adapter | IMPLEMENTED_NOT_YET_CONNECTED | Neutral config, registry, routing and contracts tested; absent from cyclic execution and uncalibrated |
 | True online ingestion | DEFERRED | Requires A9 contracts and operational state |
 | Durable checkpoint/restore | DEFERRED | Current detector state is in-memory or report-oriented |
 | Late-arrival handling/watermarks | DEFERRED | Requires distinct observation/ingestion time |

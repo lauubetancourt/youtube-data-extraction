@@ -397,6 +397,7 @@ def resolve_run_config_paths(
                 else None
             ),
             xiao_ema=detection.xiao_ema,
+            page_hinkley=detection.page_hinkley,
             daily_frequency=(
                 _resolve_daily_frequency(detection.daily_frequency, base)
                 if detection.daily_frequency is not None

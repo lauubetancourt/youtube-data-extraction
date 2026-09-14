@@ -427,8 +427,25 @@ artefactos RAG conservan sus contratos actuales.
 
 ## Estado de detectores alternativos
 
-River 0.26.1 forma parte del runtime reproducible y la viabilidad incremental de
-Page-Hinkley fue comprobada en un spike aislado. No existen todavía
-`PageHinkleyConfig`, `PageHinkleyAdapter` ni una estrategia `page_hinkley` registrada
-en el pipeline. XIAO continúa como `REFERENCE_DETECTOR` y `REGRESSION_ANCHOR`, no
-como compromiso de detector final.
+River 0.26.1 forma parte del runtime reproducible. Page-Hinkley está integrada
+técnicamente mediante `PageHinkleyConfig`,
+`PageHinkleyAdapter` y la estrategia registrada `page_hinkley`. El adapter recibe
+solo `ActivityObservation.value`, propaga literalmente identidad, tiempo y calidad,
+y emite `score=None`. Su metadata se limita al contador propio de observaciones,
+`min_instances`, `mode` y el estado derivado `warmup_complete`; no lee estado privado
+de River. River reinicia el estado algorítmico al recibir la observación posterior a
+un drift y el adapter alinea entonces su contador de segmento, sin reset ni cooldown
+adicional.
+
+La integración está disponible para composición y pruebas sintéticas, pero no está
+conectada a la ejecución cíclica ni validada metodológicamente. XIAO continúa como
+`REFERENCE_DETECTOR` y `REGRESSION_ANCHOR`, no como compromiso de detector final.
+
+### Backlog posterior a A6-8C
+
+- **RESOLVED:** integración técnica de Page-Hinkley.
+- **OPEN:** integración de ADWIN; integración de KSWIN;
+  `CYCLIC-DETECTION-RUNTIME`; `USABILITY-EXPERIMENT-01`; `PREPROCESSING-EVAL`;
+  semántica de fingerprint experimental y `config_hash`.
+- **DEFERRED:** estudio específico de XIAO; estudio del baseline diario;
+  modernización retrospectiva; durabilidad online A9.

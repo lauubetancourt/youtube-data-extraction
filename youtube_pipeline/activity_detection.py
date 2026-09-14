@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import math
 from numbers import Real
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Protocol
 
 from youtube_pipeline.activity_signals import ActivityObservation
 
@@ -94,6 +94,13 @@ class DetectionResult:
         )
 
 
+class ActivityObservationDetector(Protocol):
+    """Minimal detector interface for the neutral activity-observation path."""
+
+    def on_observation(self, observation: ActivityObservation) -> DetectionResult:
+        ...
+
+
 @dataclass(frozen=True, slots=True)
 class ActivityDetectionRouteConfig:
     """Explicitly associate one activity signal with one detector strategy."""
@@ -110,7 +117,7 @@ def dispatch_activity_observation(
     *,
     route: ActivityDetectionRouteConfig,
     observation: ActivityObservation,
-    detectors: Mapping[str, object],
+    detectors: Mapping[str, ActivityObservationDetector],
 ) -> DetectionResult:
     """Deliver an observation through an explicit route without exposing its source."""
 
@@ -150,6 +157,7 @@ def dispatch_activity_observation(
 
 
 __all__ = [
+    "ActivityObservationDetector",
     "ActivityDetectionRouteConfig",
     "DetectionResult",
     "dispatch_activity_observation",

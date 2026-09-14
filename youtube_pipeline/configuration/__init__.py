@@ -4,7 +4,7 @@ from youtube_pipeline.activity_detection import (
     ActivityDetectionRouteConfig,
     DetectionResult,
 )
-from youtube_pipeline.detectors import XiaoEMAConfig
+from youtube_pipeline.detectors import PageHinkleyConfig, XiaoEMAConfig
 
 from .loading import load_run_config, run_config_from_mapping
 from .models import (
@@ -32,6 +32,7 @@ __all__ = [
     "DetectionConfig",
     "DetectionResult",
     "load_run_config",
+    "PageHinkleyConfig",
     "RagConfig",
     "ResolvedRunConfig",
     "resolve_run_config",

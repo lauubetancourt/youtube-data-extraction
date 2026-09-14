@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, replace
+from numbers import Real
 from typing import Any, Callable, Protocol
 
 import pandas as pd
+from river import drift
 
 from youtube_pipeline.activity_signals import (
     ActivityObservation,
@@ -12,14 +15,16 @@ from youtube_pipeline.activity_signals import (
     _align_timestamp_to_cadence as _align_timestamp_to_slide,
     event_window_comment_count_definition,
 )
-from youtube_pipeline.activity_detection import DetectionResult
+from youtube_pipeline.activity_detection import (
+    ActivityObservationDetector,
+    DetectionResult,
+)
 
 
-class TriggerDetector(Protocol):
+class TriggerDetector(ActivityObservationDetector, Protocol):
+    """Legacy XIAO lifecycle in addition to neutral observation detection."""
+
     completed_triggers: list[dict[str, Any]]
-
-    def on_observation(self, observation: ActivityObservation) -> DetectionResult:
-        ...
 
     def on_event(self, event: dict[str, Any]) -> None:
         ...
@@ -38,6 +43,110 @@ def _timedelta_steps(window_td: pd.Timedelta, slide_td: pd.Timedelta, label: str
     if window_ns % slide_ns != 0:
         raise ValueError(f"{label} must be an exact multiple of slide_interval.")
     return window_ns // slide_ns
+
+
+@dataclass(frozen=True, slots=True)
+class PageHinkleyConfig:
+    """Technical River defaults, not event-detection validated parameters."""
+
+    min_instances: int = 30
+    delta: float = 0.005
+    threshold: float = 50.0
+    alpha: float = 0.9999
+    mode: str = "both"
+
+    @classmethod
+    def from_mapping(cls, payload: dict[str, Any]) -> "PageHinkleyConfig":
+        config_payload = payload.get("page_hinkley", payload)
+        if not isinstance(config_payload, dict):
+            raise ValueError("Page-Hinkley config must be an object.")
+        allowed = set(cls.__dataclass_fields__)
+        unknown = sorted(set(config_payload) - allowed)
+        if unknown:
+            raise ValueError(f"Unknown Page-Hinkley config fields: {unknown}")
+        return cls(**config_payload)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.min_instances, bool) or not isinstance(
+            self.min_instances, int
+        ):
+            raise TypeError("min_instances must be an integer.")
+        if self.min_instances < 1:
+            raise ValueError("min_instances must be >= 1.")
+
+        for field_name in ("delta", "threshold", "alpha"):
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or not isinstance(value, Real):
+                raise TypeError(f"{field_name} must be a real number.")
+            numeric_value = float(value)
+            if not math.isfinite(numeric_value):
+                raise ValueError(f"{field_name} must be finite.")
+            object.__setattr__(self, field_name, numeric_value)
+
+        if self.delta < 0:
+            raise ValueError("delta must be >= 0.")
+        if self.threshold <= 0:
+            raise ValueError("threshold must be > 0.")
+        if not 0 < self.alpha <= 1:
+            raise ValueError("alpha must be in the interval (0, 1].")
+        if not isinstance(self.mode, str):
+            raise TypeError("mode must be a string.")
+        if self.mode not in {"up", "down", "both"}:
+            raise ValueError("mode must be one of: up, down, both.")
+
+
+class PageHinkleyAdapter:
+    """Adapt River Page-Hinkley to the neutral observation/result contract.
+
+    Availability through this adapter does not make Page-Hinkley a validated,
+    recommended, or definitive detector for event detection.
+    """
+
+    detector_id = "page_hinkley"
+
+    def __init__(self, *, config: PageHinkleyConfig | None = None) -> None:
+        if config is not None and not isinstance(config, PageHinkleyConfig):
+            raise TypeError("config must be PageHinkleyConfig or None.")
+        self.config = config or PageHinkleyConfig()
+        self.observations_processed = 0
+        self._detector = drift.PageHinkley(
+            min_instances=self.config.min_instances,
+            delta=self.config.delta,
+            threshold=self.config.threshold,
+            alpha=self.config.alpha,
+            mode=self.config.mode,
+        )
+
+    def on_observation(self, observation: ActivityObservation) -> DetectionResult:
+        """Update Page-Hinkley with the observation's numeric value only."""
+
+        if not isinstance(observation, ActivityObservation):
+            raise TypeError("observation must be an ActivityObservation.")
+
+        # River resets Page-Hinkley at the start of the update after a drift.
+        # Mirror that public lifecycle in the adapter-owned warm-up counter.
+        if self._detector.drift_detected:
+            self.observations_processed = 0
+
+        self._detector.update(observation.value)
+        self.observations_processed += 1
+
+        return DetectionResult(
+            detector_id=self.detector_id,
+            signal_id=observation.signal.signal_id,
+            observation_time_utc=observation.observation_time_utc,
+            triggered=bool(self._detector.drift_detected),
+            quality=observation.quality,
+            score=None,
+            detector_metadata={
+                "observations_processed": self.observations_processed,
+                "min_instances": self.config.min_instances,
+                "mode": self.config.mode,
+                "warmup_complete": (
+                    self.observations_processed >= self.config.min_instances
+                ),
+            },
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -354,6 +463,7 @@ class XiaoEMATriggerDetector:
 
 
 DEFAULT_DETECTOR = "xiao_ema"
+PAGE_HINKLEY_DETECTOR = "page_hinkley"
 DETECTOR_PARAM_ALIASES = {
     "trigger_window_size": "window_size",
     "trigger_slide_interval": "slide_interval",
@@ -362,8 +472,9 @@ DETECTOR_PARAM_ALIASES = {
     "trigger_min_volume": "v_min",
     "trigger_cooldown": "cooldown",
 }
-DETECTOR_REGISTRY: dict[str, Callable[..., TriggerDetector]] = {
+DETECTOR_REGISTRY: dict[str, Callable[..., ActivityObservationDetector]] = {
     DEFAULT_DETECTOR: XiaoEMATriggerDetector,
+    PAGE_HINKLEY_DETECTOR: PageHinkleyAdapter,
 }
 
 
@@ -381,7 +492,7 @@ def get_detector_names() -> tuple[str, ...]:
 def create_detector(
     name: str | None = DEFAULT_DETECTOR,
     **params: Any,
-) -> TriggerDetector:
+) -> ActivityObservationDetector:
     detector_name = name or DEFAULT_DETECTOR
     try:
         factory = DETECTOR_REGISTRY[detector_name]
@@ -394,9 +505,13 @@ def create_detector(
 
 
 __all__ = [
+    "ActivityObservationDetector",
     "DEFAULT_DETECTOR",
     "DETECTOR_PARAM_ALIASES",
     "DETECTOR_REGISTRY",
+    "PAGE_HINKLEY_DETECTOR",
+    "PageHinkleyAdapter",
+    "PageHinkleyConfig",
     "TriggerDetector",
     "XiaoEMAConfig",
     "XiaoEMATriggerDetector",

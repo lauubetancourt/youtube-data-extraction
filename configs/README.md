@@ -116,9 +116,30 @@ When a neutral activity route is configured, the association is explicit:
 cyclic compatibility profile has not yet adopted this route as its general runtime
 dispatch.
 
-No Page-Hinkley configuration exists yet. River is installed, but documenting or
-adding a `page_hinkley` strategy belongs to the next approved detector-integration
-phase.
+Page-Hinkley can be selected explicitly without changing the signal definition:
+
+```json
+{
+  "detection": {
+    "activity_route": {
+      "signal_id": "comment_count_event_window_120s_step_30s",
+      "detector_id": "page_hinkley"
+    },
+    "page_hinkley": {
+      "min_instances": 30,
+      "delta": 0.005,
+      "threshold": 50.0,
+      "alpha": 0.9999,
+      "mode": "both"
+    }
+  }
+}
+```
+
+These values mirror River's technical defaults; they are not calibrated or
+methodologically validated for event detection. No current profile selects
+Page-Hinkley by default, and cyclic execution has not been connected to the neutral
+route.
 
 ## Current profiles
 

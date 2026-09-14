@@ -15,7 +15,11 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
-from youtube_pipeline.detectors import XiaoEMAConfig, get_detector_names
+from youtube_pipeline.detectors import (
+    PageHinkleyConfig,
+    XiaoEMAConfig,
+    get_detector_names,
+)
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.rag_consumer import RagConsumerConfig
 from youtube_pipeline.rag_evidence import RagEvidenceBuildConfig
@@ -187,6 +191,7 @@ class DetectionConfig:
     activity_route: ActivityDetectionRouteConfig | None = None
     connector: CyclicDetectionConnectorConfig | None = None
     xiao_ema: XiaoEMAConfig | None = None
+    page_hinkley: PageHinkleyConfig | None = None
     daily_frequency: DailyFrequencyBaselineConfig | None = None
 
     def __post_init__(self) -> None:
@@ -206,6 +211,11 @@ class DetectionConfig:
             XiaoEMAConfig,
         )
         _require_optional_instance(
+            "page_hinkley",
+            self.page_hinkley,
+            PageHinkleyConfig,
+        )
+        _require_optional_instance(
             "daily_frequency",
             self.daily_frequency,
             DailyFrequencyBaselineConfig,
@@ -218,9 +228,11 @@ class DetectionConfig:
                     f"Unknown activity detector {self.activity_route.detector_id!r}; "
                     f"available detectors: {available}."
                 )
-            configured_detectors = (
-                {"xiao_ema"} if self.xiao_ema is not None else set()
-            )
+            configured_detectors = set()
+            if self.xiao_ema is not None:
+                configured_detectors.add("xiao_ema")
+            if self.page_hinkley is not None:
+                configured_detectors.add("page_hinkley")
             if self.activity_route.detector_id not in configured_detectors:
                 raise ValueError(
                     "The configured activity route requires a matching detector "
@@ -229,6 +241,7 @@ class DetectionConfig:
         if (
             self.connector is None
             and self.xiao_ema is None
+            and self.page_hinkley is None
             and self.daily_frequency is None
         ):
             raise ValueError("DetectionConfig must configure at least one detector.")
