@@ -4,7 +4,7 @@ from youtube_pipeline.activity_detection import (
     ActivityDetectionRouteConfig,
     DetectionResult,
 )
-from youtube_pipeline.detectors import PageHinkleyConfig, XiaoEMAConfig
+from youtube_pipeline.detectors import ADWINConfig, PageHinkleyConfig, XiaoEMAConfig
 
 from .loading import load_run_config, run_config_from_mapping
 from .models import (
@@ -25,6 +25,7 @@ from .serialization import (
 )
 
 __all__ = [
+    "ADWINConfig",
     "ActivityDetectionRouteConfig",
     "ArtifactsConfig",
     "canonical_run_config_json",

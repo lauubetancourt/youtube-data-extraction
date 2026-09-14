@@ -16,6 +16,7 @@ from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
 from youtube_pipeline.detectors import (
+    ADWINConfig,
     PageHinkleyConfig,
     XiaoEMAConfig,
     get_detector_names,
@@ -192,6 +193,7 @@ class DetectionConfig:
     connector: CyclicDetectionConnectorConfig | None = None
     xiao_ema: XiaoEMAConfig | None = None
     page_hinkley: PageHinkleyConfig | None = None
+    adwin: ADWINConfig | None = None
     daily_frequency: DailyFrequencyBaselineConfig | None = None
 
     def __post_init__(self) -> None:
@@ -215,6 +217,7 @@ class DetectionConfig:
             self.page_hinkley,
             PageHinkleyConfig,
         )
+        _require_optional_instance("adwin", self.adwin, ADWINConfig)
         _require_optional_instance(
             "daily_frequency",
             self.daily_frequency,
@@ -233,6 +236,8 @@ class DetectionConfig:
                 configured_detectors.add("xiao_ema")
             if self.page_hinkley is not None:
                 configured_detectors.add("page_hinkley")
+            if self.adwin is not None:
+                configured_detectors.add("adwin")
             if self.activity_route.detector_id not in configured_detectors:
                 raise ValueError(
                     "The configured activity route requires a matching detector "
@@ -242,6 +247,7 @@ class DetectionConfig:
             self.connector is None
             and self.xiao_ema is None
             and self.page_hinkley is None
+            and self.adwin is None
             and self.daily_frequency is None
         ):
             raise ValueError("DetectionConfig must configure at least one detector.")

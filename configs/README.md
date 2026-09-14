@@ -136,10 +136,31 @@ Page-Hinkley can be selected explicitly without changing the signal definition:
 }
 ```
 
-These values mirror River's technical defaults; they are not calibrated or
-methodologically validated for event detection. No current profile selects
-Page-Hinkley by default, and cyclic execution has not been connected to the neutral
-route.
+ADWIN uses the same route without changing the signal's physical-time window:
+
+```json
+{
+  "detection": {
+    "activity_route": {
+      "signal_id": "comment_count_event_window_120s_step_30s",
+      "detector_id": "adwin"
+    },
+    "adwin": {
+      "delta": 0.002,
+      "clock": 32,
+      "max_buckets": 5,
+      "min_window_length": 5,
+      "grace_period": 10
+    }
+  }
+}
+```
+
+The Page-Hinkley and ADWIN values shown above mirror River's technical defaults;
+they are not calibrated or methodologically validated for event detection. No
+current profile selects either detector by default, and cyclic execution has not
+been connected to the neutral route. ADWIN's adaptive window counts observations
+inside the detector and does not replace `ActivitySignalDefinition.window`.
 
 ## Current profiles
 

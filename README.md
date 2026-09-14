@@ -34,10 +34,10 @@ python -m pip install -r requirements-runtime.txt
 python -m unittest discover -s tests -p 'test_*.py'
 ```
 
-River 0.26.1 is installed reproducibly. `PageHinkleyConfig` and the neutral
-`PageHinkleyAdapter` are available for composition and synthetic tests. They are
-not connected to cyclic execution and their technical defaults are not validated
-event-detection parameters.
+River 0.26.1 is installed reproducibly. Neutral Page-Hinkley and ADWIN adapters
+are available for composition and synthetic tests. They are not connected to
+cyclic execution and their technical defaults are not validated event-detection
+parameters.
 
 ## Main execution paths
 

@@ -19,7 +19,7 @@ from youtube_pipeline.daily_rag_context_selection import DailyContextSelectionCo
 from youtube_pipeline.daily_rag_consumer import DailyRagConsumerConfig
 from youtube_pipeline.daily_rag_sidecars import DailyRagSidecarBuildConfig
 from youtube_pipeline.data_extraction import ExtractionConfig
-from youtube_pipeline.detectors import PageHinkleyConfig, XiaoEMAConfig
+from youtube_pipeline.detectors import ADWINConfig, PageHinkleyConfig, XiaoEMAConfig
 from youtube_pipeline.prepared_replay import PreparedDatasetConfig, ReplayConfig
 from youtube_pipeline.rag_consumer import RagConsumerConfig
 from youtube_pipeline.rag_evidence import RagEvidenceBuildConfig
@@ -58,6 +58,7 @@ _DETECTION_FIELDS = {
     "connector",
     "xiao_ema",
     "page_hinkley",
+    "adwin",
     "daily_frequency",
 }
 _RAG_FIELDS = {
@@ -329,6 +330,15 @@ def _build_detection(payload: Any) -> DetectionConfig:
                 "detection.page_hinkley",
             )
             if "page_hinkley" in section
+            else None
+        ),
+        adwin=(
+            _build_component(
+                ADWINConfig,
+                section["adwin"],
+                "detection.adwin",
+            )
+            if "adwin" in section
             else None
         ),
         daily_frequency=(

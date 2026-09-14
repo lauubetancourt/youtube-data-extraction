@@ -93,7 +93,7 @@ _PATH_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
 _OMITTED_NONE_FIELDS_BY_TYPE: dict[type, frozenset[str]] = {
     DataConfig: frozenset({"prepared_dataset"}),
     DetectionConfig: frozenset(
-        {"activity_route", "xiao_ema", "page_hinkley"}
+        {"activity_route", "xiao_ema", "page_hinkley", "adwin"}
     ),
     RunConfig: frozenset({"data", "rag", "artifacts"}),
     SimulationConfig: frozenset({"replay"}),

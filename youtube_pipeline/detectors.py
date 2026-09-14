@@ -150,6 +150,111 @@ class PageHinkleyAdapter:
 
 
 @dataclass(frozen=True, slots=True)
+class ADWINConfig:
+    """Technical River defaults, not event-detection validated parameters."""
+
+    delta: float = 0.002
+    clock: int = 32
+    max_buckets: int = 5
+    min_window_length: int = 5
+    grace_period: int = 10
+
+    @classmethod
+    def from_mapping(cls, payload: dict[str, Any]) -> "ADWINConfig":
+        config_payload = payload.get("adwin", payload)
+        if not isinstance(config_payload, dict):
+            raise ValueError("ADWIN config must be an object.")
+        allowed = set(cls.__dataclass_fields__)
+        unknown = sorted(set(config_payload) - allowed)
+        if unknown:
+            raise ValueError(f"Unknown ADWIN config fields: {unknown}")
+        return cls(**config_payload)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.delta, bool) or not isinstance(self.delta, Real):
+            raise TypeError("delta must be a real number.")
+        numeric_delta = float(self.delta)
+        if not math.isfinite(numeric_delta):
+            raise ValueError("delta must be finite.")
+        if not 0 < numeric_delta < 1:
+            raise ValueError("delta must be in the interval (0, 1).")
+        object.__setattr__(self, "delta", numeric_delta)
+
+        for field_name in (
+            "clock",
+            "max_buckets",
+            "min_window_length",
+            "grace_period",
+        ):
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise TypeError(f"{field_name} must be an integer.")
+
+        if self.clock < 1:
+            raise ValueError("clock must be >= 1.")
+        if self.max_buckets < 1:
+            raise ValueError("max_buckets must be >= 1.")
+        if self.min_window_length < 1:
+            raise ValueError("min_window_length must be >= 1.")
+        if self.grace_period < 0:
+            raise ValueError("grace_period must be >= 0.")
+
+
+class ADWINAdapter:
+    """Adapt River ADWIN to the neutral observation/result contract.
+
+    The adaptive window is detector state measured in observations. It is not
+    the physical-time window declared by ``ActivitySignalDefinition``.
+    Availability through this adapter does not make ADWIN calibrated, validated,
+    or selected as the definitive event detector.
+    """
+
+    detector_id = "adwin"
+
+    def __init__(self, *, config: ADWINConfig | None = None) -> None:
+        if config is not None and not isinstance(config, ADWINConfig):
+            raise TypeError("config must be ADWINConfig or None.")
+        self.config = config or ADWINConfig()
+        self.observations_processed = 0
+        self._detector = drift.ADWIN(
+            delta=self.config.delta,
+            clock=self.config.clock,
+            max_buckets=self.config.max_buckets,
+            min_window_length=self.config.min_window_length,
+            grace_period=self.config.grace_period,
+        )
+
+    def on_observation(self, observation: ActivityObservation) -> DetectionResult:
+        """Update ADWIN with the observation's numeric value only."""
+
+        if not isinstance(observation, ActivityObservation):
+            raise TypeError("observation must be an ActivityObservation.")
+
+        # River resets ADWIN at the start of the update after a drift. Mirror
+        # that public lifecycle in the adapter-owned segment counter.
+        if self._detector.drift_detected:
+            self.observations_processed = 0
+
+        self._detector.update(observation.value)
+        self.observations_processed += 1
+
+        return DetectionResult(
+            detector_id=self.detector_id,
+            signal_id=observation.signal.signal_id,
+            observation_time_utc=observation.observation_time_utc,
+            triggered=bool(self._detector.drift_detected),
+            quality=observation.quality,
+            score=None,
+            detector_metadata={
+                "observations_processed": self.observations_processed,
+                "width": self._detector.width,
+                "estimation": self._detector.estimation,
+                "variance": self._detector.variance,
+            },
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class XiaoEMAConfig:
     """Authoritative methodological parameters for the XIAO EMA detector."""
 
@@ -464,6 +569,7 @@ class XiaoEMATriggerDetector:
 
 DEFAULT_DETECTOR = "xiao_ema"
 PAGE_HINKLEY_DETECTOR = "page_hinkley"
+ADWIN_DETECTOR = "adwin"
 DETECTOR_PARAM_ALIASES = {
     "trigger_window_size": "window_size",
     "trigger_slide_interval": "slide_interval",
@@ -475,6 +581,7 @@ DETECTOR_PARAM_ALIASES = {
 DETECTOR_REGISTRY: dict[str, Callable[..., ActivityObservationDetector]] = {
     DEFAULT_DETECTOR: XiaoEMATriggerDetector,
     PAGE_HINKLEY_DETECTOR: PageHinkleyAdapter,
+    ADWIN_DETECTOR: ADWINAdapter,
 }
 
 
@@ -505,6 +612,9 @@ def create_detector(
 
 
 __all__ = [
+    "ADWINAdapter",
+    "ADWINConfig",
+    "ADWIN_DETECTOR",
     "ActivityObservationDetector",
     "DEFAULT_DETECTOR",
     "DETECTOR_PARAM_ALIASES",

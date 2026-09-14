@@ -437,15 +437,26 @@ de River. River reinicia el estado algorítmico al recibir la observación poste
 un drift y el adapter alinea entonces su contador de segmento, sin reset ni cooldown
 adicional.
 
-La integración está disponible para composición y pruebas sintéticas, pero no está
-conectada a la ejecución cíclica ni validada metodológicamente. XIAO continúa como
+ADWIN también está integrado mediante `ADWINConfig`, `ADWINAdapter` y la estrategia
+`adwin`, usando la misma interfaz neutral. `ActivitySignalDefinition.window` sigue
+siendo el intervalo físico usado para construir una observación; la ventana
+adaptativa de ADWIN es estado interno medido en observaciones. Su metadata pública
+incluye `width`, `estimation` y `variance`, pero estas magnitudes no se convierten en
+un score común. Ante un drift, ADWIN contrae la ventana en esa actualización; en la
+siguiente, River reinicia el detector conforme al lifecycle público de esta versión.
+
+Ambas integraciones están disponibles para composición y pruebas sintéticas, pero
+no están conectadas a la ejecución cíclica ni validadas metodológicamente. La escala
+de cada señal deberá evaluarse antes de calibrar ADWIN. XIAO continúa como
 `REFERENCE_DETECTOR` y `REGRESSION_ANCHOR`, no como compromiso de detector final.
 
-### Backlog posterior a A6-8C
+### Backlog posterior a A6-8D
 
-- **RESOLVED:** integración técnica de Page-Hinkley.
-- **OPEN:** integración de ADWIN; integración de KSWIN;
-  `CYCLIC-DETECTION-RUNTIME`; `USABILITY-EXPERIMENT-01`; `PREPROCESSING-EVAL`;
-  semántica de fingerprint experimental y `config_hash`.
+- **RESOLVED:** integración técnica de Page-Hinkley; integración técnica de ADWIN.
+- **OPEN:** `CYCLIC-DETECTION-RUNTIME`; `USABILITY-EXPERIMENT-01`;
+  `PREPROCESSING-EVAL`; semántica de fingerprint experimental y `config_hash`;
+  diseño e integración de señales de polarización.
+- **DEFERRED / CONDITIONAL:** KSWIN, solo ante una señal o caso donde el cambio
+  distribucional aporte información que Page-Hinkley y ADWIN no representen.
 - **DEFERRED:** estudio específico de XIAO; estudio del baseline diario;
   modernización retrospectiva; durabilidad online A9.
