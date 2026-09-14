@@ -1,5 +1,10 @@
 # Registro consolidado de experimentos retrospectivos
 
+**Estado:** HISTORICAL_DECISION
+**Uso:** evidencia compacta y vigente de decisiones retrospectivas ya concluidas;
+no es un perfil operativo ni un dataset canónico.
+**Arquitectura actual:** [pipeline_architecture.md](pipeline_architecture.md).
+
 Este registro conserva las decisiones y los resultados relevantes de las corridas retrospectivas de desarrollo. No convierte las corridas en casos de uso oficiales ni exige conservar sus materializaciones completas.
 
 ## Dataset experimental compartido

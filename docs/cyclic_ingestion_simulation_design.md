@@ -1,5 +1,11 @@
 # Diseno de simulacion ciclica de ingesta en linea
 
+**Estado:** CURRENT SEMANTICS + IMPLEMENTATION HISTORY
+**Autoridad vigente:** política temporal, ciclos, cutoffs, ventanas y causalidad de
+la simulación. Las secciones C-0…C-5 conservan la secuencia histórica de
+implementación y no sustituyen la
+[arquitectura end-to-end](pipeline_architecture.md).
+
 ## 1. Objetivo
 
 `cyclic_ingestion_simulation` agrega un modo de simulacion pseudo-online basado en ciclos periodicos de ingesta. El modo actual `retrospective_replay` se conserva como alternativa y no se elimina.
@@ -158,7 +164,8 @@ Semantica stateful:
 - un comentario puede aparecer como activo en varias ventanas por solapamiento;
 - un comentario puede salir de la ventana cuando deja de cumplir el rango activo;
 - el detector futuro no recibira solo comentarios nuevos, sino la ventana activa y
-  el estado acumulado.
+  el estado acumulado. Esta frase registra el objetivo de C-3; la conexión
+  controlada y los contratos A6 se implementaron en fases posteriores.
 
 Reglas temporales:
 
@@ -191,8 +198,8 @@ no ejecuta `build_event_time_window_stream`, no instancia el detector, no llama
 
 `detection_smoke_test` ejecuta una prueba pequena y controlada de monitoreo y
 deteccion sobre pocos ciclos aprobados. Este modo resuelve los `comment_id`
-activos de `cycle_window_inventory.csv` contra la fuente canonica
-`data/gold/clean_comments.parquet` en memoria. No crea datasets completos por
+activos de `cycle_window_inventory.csv` contra el dataset preparado configurado
+(el perfil histórico usa `data/gold/clean_comments.parquet`) en memoria. No crea datasets completos por
 ciclo, no duplica Gold y no reemplaza Bronze/Silver/Gold.
 
 Entradas:
@@ -202,7 +209,8 @@ Entradas:
 - `cycle_window_inventory.csv`
 - `cycle_stateful_context.json`
 - `cycle_adapter_manifest.json`
-- `data/gold/clean_comments.parquet` solo en `detection_smoke_test`
+- dataset preparado configurado; el perfil de compatibilidad usa
+  `data/gold/clean_comments.parquet` solo en `detection_smoke_test`
 
 Salidas:
 
@@ -236,7 +244,8 @@ Politica stateful:
 Politica de materializacion en `detection_smoke_test`:
 
 - `cycle_window_inventory.csv` funciona como indice de ciclo y ventana;
-- `data/gold/clean_comments.parquet` funciona como fuente canonica principal;
+- el dataset preparado configurado funciona como fuente de materialización; Gold
+  es únicamente el path del perfil de compatibilidad;
 - la materializacion de filas se realiza en memoria;
 - `debug_full_rows = false` por defecto;
 - `debug_cycle_materialized_rows.parquet` no se genera sin aprobacion explicita;
@@ -378,11 +387,14 @@ use_embeddings = false
 use_vectorstore = false
 ```
 
-## 11. Integracion futura con monitoreo, deteccion y RAG
+## 11. Nota histórica sobre la integración posterior
 
 C-0/C-1 no ejecuta monitoreo, deteccion, sidecars RAG, G-1, G-2, LLM, Serper, embeddings ni vectorstore.
 
-Fases futuras podran consumir los inventarios por ciclo para ejecutar el pipeline sobre datos temporalmente disponibles sin alterar `retrospective_replay`.
+Las fases posteriores consumieron estos inventarios para la conexión controlada,
+las señales diarias, el baseline y el RAG diario sin alterar
+`retrospective_replay`. La integración productiva general mediante los contratos
+neutrales de A6 continúa parcial; véase la arquitectura vigente.
 
 ## 12. Detector diario baseline externo a XIAO
 

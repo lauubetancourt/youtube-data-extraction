@@ -1,5 +1,10 @@
 # Implementacion tecnica de G-2 jerarquico
 
+**Estado:** CURRENT IMPLEMENTATION REFERENCE
+**Alcance:** arquitectura y contratos de G-2 jerárquico; no registra resultados
+experimentales ni convierte el modo externo en ejecución automática.
+**Arquitectura end-to-end:** [pipeline_architecture.md](pipeline_architecture.md).
+
 Este documento describe la implementacion de G-2 jerarquico como fase posterior
 y opcional del pipeline. No documenta resultados experimentales.
 
@@ -193,4 +198,3 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest tests.test_rag_generation
 - No usa agentic RAG.
 - No usa self-reflective RAG.
 - No usa knowledge graphs.
-

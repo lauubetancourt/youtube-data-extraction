@@ -1,8 +1,14 @@
 # Auditoría de estabilización y hoja de ruta del trabajo de grado
 
-**Fecha de corte:** 8 de agosto de 2026  
-**Repositorio auditado:** `youtube-data-extraction`  
-**Rama observada:** `feature/pipeline`  
+**Estado:** AUDIT_REPORT / HISTORICAL
+**Interpretación:** fotografía del repositorio en la fecha de corte. Varios riesgos y
+pasos propuestos fueron resueltos después; no usar este informe como arquitectura
+vigente.
+**Arquitectura actual:** [pipeline_architecture.md](pipeline_architecture.md).
+
+**Fecha de corte:** 8 de agosto de 2026
+**Repositorio auditado:** `youtube-data-extraction`
+**Rama observada:** `feature/pipeline`
 **Alcance:** inspección estática, inventario de archivos, lectura de manifests y contratos, contraste con los dos documentos académicos suministrados y ejecución local de pruebas de bajo costo. No se ejecutaron extracción, replay completo, RAG generativo, LLM, Serper, embeddings ni servicios externos. No se borraron, movieron, refactorizaron ni reescribieron artefactos existentes.
 
 Las cantidades y tamaños son una fotografía del estado local. Se redondean a MiB y pueden variar ligeramente por metadatos del sistema de archivos. El árbol de trabajo ya estaba sucio antes de esta auditoría; por tanto, este informe no atribuye autoría a cambios locales ni recomienda descartarlos.

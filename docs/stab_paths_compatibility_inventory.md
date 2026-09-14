@@ -1,5 +1,12 @@
 # STAB-PATHS-01: inventario de compatibilidad
 
+**Estado:** HISTORICAL_DECISION
+**Interpretación:** inventario con fecha de corte que explica por qué se conservaron
+interfaces legacy durante STAB-PATHS-01. No sustituye la configuración ni la
+arquitectura actuales.
+**Autoridades actuales:** [configuración](../configs/README.md) y
+[arquitectura](pipeline_architecture.md).
+
 Fecha de corte: 2026-08-17. Este inventario corresponde a la Fase 8A y se
 limita a referencias presentes en código, scripts, tests, documentación y
 perfiles versionados. No inspecciona datos ni experimentos y no demuestra la

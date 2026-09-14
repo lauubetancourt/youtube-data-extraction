@@ -1,5 +1,11 @@
 # Semántica de las señales de actividad de referencia
 
+**Estado:** CURRENT CONTRACT
+**Autoridad:** métricas y señales de actividad, `ActivitySignalDefinition`,
+`ActivityObservation`, enrutamiento señal→detector, `DetectionResult`,
+`EventCandidate`, `quality` y `detector_metadata`.
+**Contexto arquitectónico:** [arquitectura end-to-end](pipeline_architecture.md).
+
 Este documento fija el comportamiento observable que sirve como referencia durante
 la modularización de A6. No declara que las señales, detectores o parámetros sean
 óptimos, universales o definitivos.
@@ -138,14 +144,26 @@ comentarios tenían `author_id` no nulo y no vacío. Esto respalda la viabilidad
 señal candidata en ese corpus, pero no elimina la necesidad de reportar cobertura de
 autor y calidad por ejecución futura.
 
-## Límites de esta formalización
+## Estado actual de esta formalización
 
-- A6-2 añade un contrato neutral, pero todavía no conecta las rutas productivas.
-- No se extrae la señal desde XIAO.
-- No se añade una señal de autores.
-- No se incorpora otro detector.
-- No se modifican parámetros ni resultados existentes.
-- Cero eventos continúa siendo un resultado válido de una ejecución configurada.
+Las fases posteriores a A6-1 ya incorporaron los contratos neutrales, extrajeron la
+construcción de la señal de comentarios, añadieron la señal experimental de autores
+únicos, declararon la ruta señal→detector y definieron `DetectionResult` y
+`EventCandidate`.
+
+Estos avances no significan que toda la ruta productiva use ya la frontera neutral:
+
+- XIAO produce `DetectionResult`, pero su camino histórico continúa publicando
+  `completed_triggers`;
+- el enrutamiento configurable existe y está probado, pero el runner cíclico de
+  compatibilidad todavía invoca la ruta histórica;
+- `EventCandidate` existe como contrato interno y proyección compatible, pero aún no
+  es la autoridad general que alimenta evidencia/RAG;
+- el baseline diario conserva su evento especializado;
+- no existe todavía otro detector integrado al pipeline.
+
+No se modificaron parámetros ni resultados de referencia. Cero eventos continúa
+siendo un resultado válido de una ejecución configurada.
 
 ## Contrato neutral incorporado en A6-2
 
@@ -204,9 +222,11 @@ comentario
 → trigger de referencia
 ```
 
-La ventana y la cadencia todavía se originan en `XiaoEMAConfig` para preservar la
-configuración vigente. Esta ubicación es transitoria: A6-3 no introduce una segunda
-autoridad ni migra aún la selección señal-detector a una configuración de ruta.
+La ventana y la cadencia de la referencia XIAO todavía se originan en
+`XiaoEMAConfig` para preservar la configuración vigente. La ruta configurable
+incorporada después no duplica esos valores: declara únicamente `signal_id` y
+`detector_id`. El runner de compatibilidad todavía no usa esa ruta como despacho
+general.
 
 ## Señal experimental de autores únicos incorporada en A6-4
 
@@ -249,9 +269,11 @@ compatible sobre esa misma infraestructura.
 El Gold local revisado el 23 de agosto de 2026 mantiene 57.725 de 57.725 valores de
 `author_id` presentes. Esta cobertura no se asume para futuras ejecuciones.
 
-A6-4 no conecta esta señal con XIAO ni afirma que los parámetros del detector sean
-válidos para autores únicos. Su rol inicial es demostrar modularidad y dejarla lista
-para una decisión experimental posterior.
+A6-4 no conectó esta señal al flujo productivo. A6-5 demostró después, mediante el
+contrato de ruta y pruebas, que una observación de autores puede llegar a XIAO sin
+exponer filas fuente. Esa prueba arquitectónica no afirma que los parámetros del
+detector sean válidos para autores únicos ni selecciona la combinación para un
+perfil experimental.
 
 ## Composición explícita señal → detector en A6-5
 
@@ -328,10 +350,11 @@ Esta proyección queda diferida: A6-6 no modifica los artefactos diarios ni obli
 baseline a migrar. Sus eventos existentes continúan siendo la salida compatible.
 
 `DetectionResult` tampoco es un evento candidato. El resultado solo afirma que un
-criterio estadístico se satisfizo para una observación. Un adaptador posterior puede
-enriquecer un resultado disparado con `run_id`, dataset, `config_hash`, comentarios,
-videos y linaje para construir un evento candidato. Esta frontera evita que el
-detector conozca almacenamiento, datasets o validación.
+criterio estadístico se satisfizo para una observación. A6-6C incorporó una promoción
+interna que añade identidad, intervalo causal y referencias mínimas de linaje. Los
+comentarios y videos permanecen fuera del candidato y se incorporan en evidencia.
+La promoción todavía no reemplaza los eventos retrospectivos o diarios activos.
+Esta frontera evita que el detector conozca almacenamiento, datasets o validación.
 
 ### Autoridad de calidad y evidencia
 
@@ -398,5 +421,14 @@ RAG decide posteriormente cómo fragmentarlo o seleccionarlo. La proyección de
 compatibilidad XIAO solo reproduce la forma histórica de un trigger completado; los
 comentarios se entregan externamente y no se convierten en evidencia del candidato.
 
-Esta fase no conecta el contrato con las rutas productivas, no migra el baseline y
-no cambia sidecars, IDs, manifests ni artefactos RAG.
+El contrato todavía no está conectado como autoridad general de las rutas
+productivas y el baseline no ha sido migrado a él. Sidecars, IDs, manifests y
+artefactos RAG conservan sus contratos actuales.
+
+## Estado de detectores alternativos
+
+River 0.26.1 forma parte del runtime reproducible y la viabilidad incremental de
+Page-Hinkley fue comprobada en un spike aislado. No existen todavía
+`PageHinkleyConfig`, `PageHinkleyAdapter` ni una estrategia `page_hinkley` registrada
+en el pipeline. XIAO continúa como `REFERENCE_DETECTOR` y `REGRESSION_ANCHOR`, no
+como compromiso de detector final.

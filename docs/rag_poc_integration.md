@@ -1,5 +1,11 @@
 # RAG PoC Integration
 
+**Status:** POC_REFERENCE / LEGACY_ENVIRONMENT
+**Boundary:** preserves the historical notebook behavior and schemas. Its documented
+Python 3.12/legacy dependency environment is not the active pipeline runtime.
+**Current runtime and architecture:** [project README](../README.md) and
+[pipeline architecture](pipeline_architecture.md).
+
 This document describes how `triggers_validation.ipynb` is integrated as a
 posterior pipeline phase without changing its RAG behavior.
 
@@ -33,11 +39,16 @@ The module preserves the notebook's core behavior:
 - audit comment limit: first 15 comments per `trigger_time + video_id` group;
 - output files: `queries_df.csv`, `noticias_df.csv`, and `auditoria_df.csv`.
 
-## Required Environment
+## Legacy PoC environment
+
+The values below describe the environment used by this PoC snapshot. They do not
+override `.python-version` or `requirements-runtime.txt`, which define the active
+pipeline runtime. Full PoC execution requires a separately verified legacy
+environment; dry-run contract checks remain the safe compatibility path.
 
 The full PoC execution requires:
 
-- Python 3.12.13, as declared in `.python-version`;
+- Python 3.12.13, used by the legacy PoC snapshot;
 - `OPENAI_API_KEY`;
 - `SERPER_API_KEY`;
 - dependencies declared in `requirements.txt`, including `langchain`,

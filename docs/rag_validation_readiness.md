@@ -1,5 +1,12 @@
 # RAG Validation Readiness
 
+**Status:** HISTORICAL_DECISION
+**Snapshot:** design and readiness record created before the current retrospective
+and daily RAG chains were completed. Preserve its label/evidence rationale, but use
+[rag_event_evidence_contract.md](rag_event_evidence_contract.md) for the current
+evidence boundary and [pipeline_architecture.md](pipeline_architecture.md) for the
+current system.
+
 This document defines the future validation contract for detected YouTube event
 candidates. It prepares the pipeline for a later RAG proof of concept without
 implementing retrieval, embeddings, vector stores, prompts, or external-source

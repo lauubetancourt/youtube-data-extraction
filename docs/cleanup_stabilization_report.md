@@ -1,5 +1,10 @@
 # Reporte de limpieza de estabilización
 
+**Estado:** AUDIT_REPORT / HISTORICAL
+**Interpretación:** evidencia inmutable de la limpieza ejecutada; no representa el
+inventario operativo actual.
+**Arquitectura actual:** [pipeline_architecture.md](pipeline_architecture.md).
+
 - `executed_at`: `2026-08-08T16:50:34-05:00`
 - `status`: `SUCCESS`
 - `scope`: Eliminación controlada del conjunto `READY_FOR_DELETE` aprobado para artefactos experimentales y temporales.

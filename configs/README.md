@@ -1,44 +1,143 @@
-# Configuraciones versionables
+# Versionable execution configuration
 
-Cada archivo de este directorio representa una ejecución o metodología concreta.
-No se crea un perfil por componente ni se almacenan secretos, datasets u outputs
-experimentales aquí.
+**Status:** CURRENT CONFIGURATION AUTHORITY
+**Architecture context:** [`docs/pipeline_architecture.md`](../docs/pipeline_architecture.md).
 
-## Perfiles de compatibilidad
+Files under `configs/` describe concrete executions or methodologies. They do not
+store secrets, datasets, or generated outputs, and the project does not create one
+profile per component.
 
-`compatibility/cyclic_current.json` describe el comportamiento vigente del
-primer bloque que migrará STAB-PATHS-01:
+## Configuration model
+
+`RunConfig` is the immutable composition root for one execution:
 
 ```text
-simulación cíclica
-→ señales diarias
-→ daily_frequency_baseline
+RunConfig
+├── identity
+├── data
+├── simulation
+├── signals
+├── detection
+├── rag
+└── artifacts
 ```
 
-El perfil corresponde a la simulación `sim_42fc5b0f114b` y a la variante
-vigente del baseline diario con `cooldown_cycles = 0`. No incluye RAG,
-adquisición ni retrospectiva. Incluye explícitamente los parámetros XIAO EMA
-que consume el conector cuando se ejecuta en modo de detección, aunque el perfil
-de compatibilidad conserve actualmente `detection_dry_run`.
+Sections are optional when a run does not use them. Each section reuses the
+component's existing typed configuration; `RunConfig` does not copy detector,
+signal, RAG, storage, or replay parameters.
 
-Los siguientes valores se conservan temporalmente como
-`LEGACY_COMPATIBILITY_DEFAULT`:
+Components receive only the subconfiguration they need. Domain modules do not read
+JSON, parse CLI arguments, inspect environment variables for methodological values,
+or receive the complete `RunConfig` merely for convenience.
+
+## Resolution and precedence
+
+The common configuration path is:
+
+```text
+typed component defaults
+→ versionable JSON profile
+→ explicit supported overrides
+→ strict validation
+→ path resolution
+→ resolved configuration
+```
+
+Unknown keys are rejected. Values are not silently coerced to unrelated types.
+Explicit CLI overrides apply after file values, but the common CLI is limited to:
+
+- `--config`;
+- `--run-id`;
+- `--output-root`;
+- `--dry-run` or `--execute`;
+- `--log-level`.
+
+Methodological parameters remain in component configurations and profiles. Legacy
+wrappers may translate older arguments into the same resolver, but they do not
+introduce new defaults.
+
+## Paths
+
+Profiles store logical paths. `resolve_run_config` resolves them relative to the
+profile/workspace boundary before components execute. Canonical serialization
+normalizes known paths so a machine-specific absolute workspace path does not
+change `config_hash`.
+
+Historical locations such as:
 
 - `data/gold/clean_comments.parquet`;
 - `experiments/xiao/media/log_3/cyclic_ingestion_simulation`;
-- su subdirectorio `daily_frequency_baseline_cooldown_0`.
 
-Estos paths documentan y reproducen la implementación actual; no convierten el
-dataset o el experimento histórico en ubicaciones permanentes. Los módulos de
-dominio ya reciben paths explícitos; los wrappers legacy conservan defaults
-equivalentes únicamente durante la transición. El perfil es la autoridad
-externa del flujo integrado, y los defaults legacy solo se retirarán en la Fase
-8 tras demostrar que no tienen consumidores.
+remain `LEGACY_COMPATIBILITY_DEFAULT` values in current profiles and entrypoint
+shims. They are not embedded authorities in signal or detector logic. Another
+prepared dataset can be selected by changing `DataConfig`/component paths, without
+editing domain code.
 
-## Ejecución integrada del bloque cíclico
+Configuration declares where a dataset is. Dataset storage, fingerprinting,
+distribution, and recovery belong to STAB-DATA-01.
 
-El entrypoint principal del bloque ya migrado consume el perfil completo con la
-CLI común y entrega a cada etapa únicamente su subconfiguración:
+## Effective configuration and hash
+
+The resolver produces:
+
+- a typed, path-resolved `RunConfig`;
+- deterministic canonical JSON (`resolved_config`);
+- a SHA-256 `config_hash` computed from effective values.
+
+The canonical representation includes component defaults after resolution and
+excludes machine-specific path prefixes where configured. A methodological change
+changes the hash; merely running from another workspace does not.
+
+The execution-level manifest records the global `run_id`, run mode, trace level,
+`config_hash`, `resolved_config`, execution mode, and completed stages. It does not
+copy the same configuration into every component artifact.
+
+## Signal-to-detector selection
+
+When a neutral activity route is configured, the association is explicit:
+
+```json
+{
+  "detection": {
+    "activity_route": {
+      "signal_id": "comment_count_event_window_120s_step_30s",
+      "detector_id": "xiao_ema"
+    },
+    "xiao_ema": {
+      "v_min": 46
+    }
+  }
+}
+```
+
+`activity_route` contains references only. Signal semantics remain authoritative in
+`ActivitySignalDefinition`; XIAO parameters remain authoritative in
+`XiaoEMAConfig`. The route and loader are implemented and tested, but the integrated
+cyclic compatibility profile has not yet adopted this route as its general runtime
+dispatch.
+
+No Page-Hinkley configuration exists yet. River is installed, but documenting or
+adding a `page_hinkley` strategy belongs to the next approved detector-integration
+phase.
+
+## Current profiles
+
+### `compatibility/cyclic_current.json`
+
+Represents the migrated cyclic compatibility execution:
+
+```text
+cyclic simulation
+→ daily signals
+→ XIAO connector compatibility configuration
+→ daily_frequency_baseline
+```
+
+It preserves the current event-time, Bogotá timezone, XIAO, baseline, and guarded
+dry-run parameters. Its historical data/output paths are compatibility values, not
+permanent architecture.
+
+Run it without overwriting the historical output tree:
 
 ```bash
 .venv/bin/python scripts/run_cyclic_pipeline.py \
@@ -47,43 +146,66 @@ CLI común y entrega a cada etapa únicamente su subconfiguración:
   --dry-run
 ```
 
-`--output-root` evita escribir sobre el directorio histórico del perfil y
-reubica el árbol de artefactos conservando sus subdirectorios. Los parámetros
-metodológicos —ventanas, señales, umbrales y cooldown— permanecen en el JSON.
-La CLI común se limita a `--config`, `--run-id`, `--output-root`, el modo de
-ejecución y `--log-level`. El runner actual solo admite el modo protegido;
-`--execute` falla antes de generar artefactos.
+### `compatibility/daily_rag_current.json`
 
-Los siguientes scripts por etapa permanecen temporalmente como wrappers de
-compatibilidad y herramientas de diagnóstico:
+Represents the current non-generative daily RAG execution:
 
-- `run_cyclic_ingestion_simulation.py`;
-- `run_cyclic_ingestion_orchestrator.py`;
-- `run_cyclic_stateful_adapter.py`;
-- `run_cyclic_detection_connector.py`;
-- `run_cyclic_daily_signals.py`;
-- `run_daily_frequency_baseline.py`.
+```text
+daily events
+→ daily sidecars
+→ daily consumer
+→ deterministic context selection
+```
 
-No son una segunda autoridad para nuevas ejecuciones integradas y no deben
-recibir nuevos defaults metodológicos. Su posible retiro corresponde a la Fase
-8, después de verificar que no existan consumidores necesarios.
+It preserves separate historical identities for sidecars (`drun_*`), consumer
+(`dragconsumer_*`), and selection (`dragselect_*`). The global `run_id` supplies
+execution context and does not replace these stage identities.
 
-## Política de trazabilidad
+```bash
+.venv/bin/python scripts/run_daily_rag_pipeline.py \
+  --config configs/compatibility/daily_rag_current.json \
+  --output-root outputs/daily_rag_current \
+  --dry-run
+```
 
-Los perfiles actuales declaran `artifacts.run_mode = development` y
-`artifacts.trace_level = minimal`. Esta política conserva un único manifest de
-ejecución con identidad, configuración efectiva, hash y etapas completadas; no
-activa copias adicionales de datasets ni payloads intermedios.
+Profiles represent real executions. A new profile should answer which execution or
+methodology it preserves and why it needs versioning. Similar component-level files
+should not proliferate.
 
-La autoridad tipada aplica los siguientes mínimos:
+## Traceability policy
+
+Typed minimum levels are:
 
 - `development` → `minimal`;
 - `reference` → `standard`;
 - `official` → `full`.
 
-El modelo puede representar un nivel superior al mínimo, pero nunca uno
-inferior. Los runners integrados ejecutan actualmente solo
-`development/minimal`; una política superior falla antes de generar artefactos
-para evitar declarar evidencia que todavía no se produce. La retención,
-promoción, inmutabilidad y limpieza automática pertenecen a una tarea posterior
-y no se infieren a partir del nombre de un directorio.
+The current integrated runners implement only `development/minimal`. Requesting a
+higher unimplemented policy fails before artifacts are created. The type model can
+represent future policies without claiming their persistence behavior already
+exists.
+
+## Secrets and infrastructure
+
+API keys and provider credentials are resolved at entrypoint/infrastructure
+boundaries. They never belong in profiles, `RunConfig`, `resolved_config`,
+`config_hash`, or methodological manifests.
+
+Logging level and execution mode are operational controls. They are not detector or
+signal parameters.
+
+## Legacy compatibility
+
+Stage-specific scripts and `run_pipeline.py` remain where their interfaces are
+tested. They translate legacy inputs to the common resolver and may preserve old
+path defaults. New methodological parameters must not be added independently to
+those wrappers.
+
+Removal requires all of the following:
+
+```text
+replacement working
++ compatibility tests passing
++ no required consumers
++ documentation updated
+```

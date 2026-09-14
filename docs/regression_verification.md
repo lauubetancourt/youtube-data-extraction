@@ -1,6 +1,13 @@
 # Regression Verification
 
-Date: 2026-05-18  
+**Status:** AUDIT_REPORT / HISTORICAL
+**Snapshot:** 2026-05-18. Commands, environment versions, counts, and limitations
+below describe that verification only. They are intentionally not rewritten to
+match the current runtime or test suite.
+**Current runtime and architecture:** [project README](../README.md) and
+[pipeline_architecture.md](pipeline_architecture.md).
+
+Date: 2026-05-18
 Scope: verification after CRISP-DM architectural, contract, and documentation
 refinement stages.
 

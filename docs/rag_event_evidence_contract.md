@@ -1,32 +1,40 @@
-# RAG-1 Event Evidence Contract Design
+# RAG event evidence contract
 
-This document defines the contract between event detection evidence and future
-RAG validation. The current implementation is a non-invasive evidence builder:
-it does not implement RAG validation, change current outputs, change detector
-behavior, change thresholds, or promote any exploratory file to a required
-pipeline output.
+**Status:** CURRENT REFERENCE CONTRACT
+**Authority:** boundary between an event candidate or historical event record,
+complete causal evidence, RAG preparation, context selection, and validation
+inputs.
+**Architecture context:** [pipeline architecture](pipeline_architecture.md).
+
+This document defines the evidence contracts implemented for retrospective and
+daily RAG paths. It also records the compatibility schema introduced by RAG-1.
+That historical schema remains active, but it is not the same object as the
+neutral A6 `EventCandidate` contract.
 
 ## Scope
 
-RAG-1 defines what a future RAG phase should receive from the detection side.
-The contract is intentionally split into small artifacts so that detection,
-evidence assembly, retrieval, and validation remain separate responsibilities.
+The contract is split into small artifacts so detection, candidate identity,
+evidence assembly, RAG preparation, and validation remain separate
+responsibilities.
 
 In scope:
 
-- define the conceptual unit of analysis for RAG validation;
-- propose stable join keys between events, signals, comments, and runs;
-- define provisional schemas for event candidates and evidence packages;
+- define the unit of analysis for current RAG validation paths;
+- preserve stable join keys between events, signals, comments, videos, and runs;
+- define current reference schemas for historical candidates and evidence packages;
+- distinguish complete evidence from selected RAG context;
+- distinguish retrospective evidence from the daily alert/context contract;
 - preserve compatibility with current snapshots, trigger logs, and exploratory
   trigger-comment maps;
-- document pending decisions that require approval before implementation.
+- document the remaining boundary between neutral A6 candidates and historical
+  event schemas.
 
-Out of scope for the builder:
+Out of scope for evidence assembly:
 
 - changing current `snapshots.csv`, `trigger_log.txt`, or
   `trigger_comment_map.csv` files;
 - changing the detector contract or Xiao EMA behavior;
-- implementing retrieval, embeddings, chunking, prompts, or validation labels;
+- deciding prompts, models, labels, or external-retrieval policy;
 - changing data cleaning, signal formulas, metrics, thresholds, or event
   decision criteria.
 
@@ -38,16 +46,36 @@ Out of scope for the builder:
 | Current outputs remain compatible | Existing snapshots, trigger logs, and experiment files should keep working. |
 | All comments remain traceable | Every comment in the event evidence window must be recoverable, even if later ranking or chunking selects a subset for the model. |
 | Internal and external evidence stay separate | YouTube comments explain the online reaction; external sources validate whether a public event occurred. |
-| Contracts are joinable | Every future artifact should join through stable IDs rather than timestamps alone. |
+| Contracts are joinable | Artifacts join through stable IDs rather than timestamps alone. |
 | UTC and Unix seconds are canonical | New artifacts should use UTC timestamps and `*_unix_s` numeric fields. |
 | No future leakage | Evidence attached to a candidate should respect the event-time window and not silently use data that was unavailable at detection time. |
 
-## Unit Of Analysis
+## Responsibility boundary
 
-The RAG validation unit is an event evidence package.
+```text
+DETECTION
+→ CANDIDATE
+→ EVIDENCE
+→ RAG PREPARATION / CONTEXT SELECTION
+→ VALIDATION
+```
 
-An event evidence package represents one detected event candidate produced by a
-specific pipeline run and detector configuration. It links:
+| Layer | Owns | Does not own |
+|---|---|---|
+| Detection | signal/detector identity, statistical decision, score, detector metadata, propagated quality | Comment/video inventory, chunking, labels |
+| Candidate | Candidate identity, trigger/observation time, causal evidence interval, lifecycle when applicable, lineage references | Full comments, videos, prompts, validation |
+| Evidence | Complete causal comment inventory, video associations, source references | Token budgets, model selection, labels |
+| RAG preparation | Context units, chunking, ordering, capacity and selected references | Detector decision or source-data quality |
+| Validation | Queries, external evidence, G-1/G-2 labels, confidence, rationale, citations | Candidate identity formulas or signal semantics |
+
+The neutral `EventCandidate` contract is implemented but not yet the general
+runtime input to evidence assembly. Retrospective `event_id` records and daily
+`daily_event_id` records remain the current compatible candidate representations.
+
+## Unit of analysis
+
+The RAG validation unit is an event evidence package or its daily equivalent.
+It represents one candidate under a specific pipeline/stage execution and links:
 
 - the event candidate record;
 - the detector and run metadata;
@@ -56,35 +84,40 @@ specific pipeline run and detector configuration. It links:
 - all comments associated with the window;
 - the videos contributing to those comments;
 - source artifact paths needed for audit;
-- future retrieval queries, external evidence, and validation results.
+- downstream retrieval queries, external evidence, and validation results by ID.
 
 This package is not a replacement for detection output. It is a downstream
 assembly layer that makes detection evidence ready for validation.
 
-## Proposed Artifact Set
+## Current artifact set
 
 | Artifact | Grain | Purpose | Current reference | Implementation status |
 |---|---|---|---|---|
-| `run_manifest` | One row or object per execution | Record dataset, detector, parameters, code context, and output paths. | Trigger logs and extraction metadata | Implemented by non-invasive builder. |
-| `event_candidates` | One row per detected candidate | Machine-readable event candidate produced from detector trace. | Trigger dictionaries and `trigger_log.txt` | Implemented by non-invasive builder. |
-| `event_signal_snapshot_map` | One or more rows per event | Link event candidate to monitoring snapshots and signal values. | `trigger_snapshot_map.csv` from reporting script | Implemented by non-invasive builder. |
-| `event_comment_map` | One row per event-comment pair | Preserve all comments associated with the evidence window. | Exploratory `trigger_comment_map.csv` | Implemented by non-invasive builder. |
-| `event_evidence_package` | One object per event | Manifest joining all event evidence needed by RAG. | No formal current artifact | Implemented by non-invasive builder. |
+| `run_manifest` | One row or object per evidence execution | Record dataset, detector, parameters, and output paths. | Trigger logs and extraction metadata | IMPLEMENTED_AND_ACTIVE |
+| `event_candidates` | One row per retrospective candidate | Machine-readable historical candidate produced from trigger trace. | Trigger dictionaries and `trigger_log.txt` | IMPLEMENTED_AND_ACTIVE |
+| `event_signal_snapshot_map` | One or more rows per event | Link candidate to monitoring snapshots and signal values. | `trigger_snapshot_map.csv` | IMPLEMENTED_AND_ACTIVE |
+| `event_comment_map` | One row per event-comment pair | Preserve comments associated with the retrospective evidence window. | `trigger_comment_map.csv` | IMPLEMENTED_AND_ACTIVE |
+| `event_evidence_package` | One object per event | Reference the evidence needed by downstream RAG stages. | RAG-1 contract | IMPLEMENTED_AND_ACTIVE |
+| `event_comment_inventory` / `event_video_map` | One row per event-comment or event-video pair | Preserve complete sidecar evidence and video associations. | Retrospective sidecars | IMPLEMENTED_AND_ACTIVE |
+| `rag_context_units` / comment map | One unit and its source-comment associations | Prepare traceable context without replacing the inventory. | Retrospective sidecars | IMPLEMENTED_AND_ACTIVE |
+| `rag_validation_inputs` / context payloads | One validation input and selected payload per event | Feed G-1/G-2 with traceable evidence references. | RAG consumer | IMPLEMENTED_AND_ACTIVE |
+| Daily evidence/consumer/selection artifacts | Daily event, comment/video inventory, context units, capacity, and selected context | Preserve alert evidence separately from validation context. | Daily RAG path | IMPLEMENTED_AND_ACTIVE |
 
-These names are the current non-invasive builder outputs. They are not yet
-native pipeline outputs and should still be treated as RAG-preparation
-artifacts.
+Evidence and RAG artifacts are written under configured stage output roots. They
+are active downstream contracts, not required columns of the prepared dataset or
+native outputs of every detector.
 
-## Current Non-Invasive Implementation
+## Retrospective compatibility implementation
 
-The first implementation lives outside the main pipeline:
+The first retrospective implementation remains a non-invasive stage:
 
 - module: `youtube_pipeline/rag_evidence.py`;
 - CLI helper: `scripts/build_rag_event_evidence.py`;
 - current role: read existing experiment artifacts and write new RAG evidence
   artifacts into a separate output directory.
 - configuration object: `RagEvidenceBuildConfig`;
-- optional config loading: `--config-file path/to/config.json`.
+- common configuration through `RagConfig.evidence` plus preserved legacy CLI/config
+  translation.
 
 It does not alter playback, monitoring, detection, thresholds, metrics,
 existing snapshots, trigger logs, or exploratory trigger-comment maps.
@@ -139,6 +172,21 @@ Approved implementation decisions for this first builder:
   deduplicated within each event;
 - the builder is non-invasive and does not modify the main pipeline.
 
+### Neutral candidate versus historical event row
+
+The A6 `EventCandidate` contract and this file's `event_candidates.csv` serve
+related but different roles:
+
+- neutral `EventCandidate` composes an `ActivityObservation`, a triggered
+  `DetectionResult`, minimal lineage, and a causal interval;
+- retrospective `event_candidates.csv` is the active compatibility projection built
+  from XIAO trigger artifacts and contains XIAO-specific fields;
+- the daily path uses `daily_event_id` records produced directly by the baseline.
+
+The neutral contract does not replace either persisted schema yet. A future
+connection must preserve current ID formulas and project into the existing RAG
+contracts before any schema migration is considered.
+
 ## Contract: `run_manifest`
 
 The run manifest prevents each event row from becoming overloaded with repeated
@@ -147,7 +195,7 @@ execution context.
 
 | Field | Required | Source | Description | Compatibility note |
 |---|---|---|---|---|
-| `run_id` | Yes | Future execution metadata | Stable identifier for the pipeline or experiment run. | New field; no current output is changed. |
+| `run_id` | Yes | Evidence execution metadata | Stable identifier for the pipeline or experiment run. | Preserved current field. |
 | `created_at_utc` | Yes | Runtime/reporting layer | Time when the run manifest was created. | New field. |
 | `pipeline_stage` | Yes | Runtime/reporting layer | Stage that produced the artifacts, for example `playback_detection`. | New field. |
 | `dataset_path` | Yes | CLI or reporting input | Dataset used for playback or report reconstruction. | Can reference current `data/gold/clean_comments.parquet`. |
@@ -174,7 +222,7 @@ per candidate, and should not contain all comments directly.
 | `window_end_utc` | Yes | Evidence window rule | End of comment evidence window. | Current maps have `window_end`. |
 | `trigger_volume` | Yes | Detector trigger | Volume observed at trigger. | Current maps/logs have this value. |
 | `trigger_strength` | Recommended | Detector trigger | Detector-specific strength. For Xiao EMA, EMA fast over EMA slow. | Current maps/logs have this value. |
-| `decision_level` | Recommended | Future decision taxonomy | Suggested values: `candidate`, `validated`, `rejected`, `ambiguous`. | Future field; should not alter detector output. |
+| `decision_level` | Recommended | Evidence/candidate projection | Distinguishes an unvalidated candidate from posterior validation. | Must not alter detector output. |
 | `comment_count` | Recommended | `event_comment_map` aggregate | Count of comments linked to this event. | Derived field; useful for audit. |
 | `unique_video_count` | Recommended | `event_comment_map` aggregate | Number of videos represented in the evidence window. | Derived field. |
 | `unique_author_count` | Optional/internal | `event_comment_map` aggregate | Number of authors represented in the evidence window. | Sensitive in public reports. |
@@ -209,7 +257,7 @@ artifact.
 | `activity.unique_authors` | Recommended | Snapshot | Unique author count. | Current field when available. |
 | `activity.unique_videos` | Recommended | Snapshot | Unique video count. | Current field when available. |
 | `polarization.*` | Recommended | Snapshot | Available polarization or discourse summary fields. | Field meaning remains unchanged. |
-| `signal_role` | Recommended | Future evidence assembly layer | Example values: `trigger_anchor`, `pre_context`, `post_context`. | New explanatory field. |
+| `signal_role` | Recommended | Evidence assembly layer | Example values: `trigger_anchor`, `pre_context`, `post_context`. | Explanatory field. |
 
 ## Contract: `event_comment_map`
 
@@ -265,55 +313,77 @@ embedding all comments directly.
 | `package_artifact_version` | Yes | Contract version | Version of the package contract. | New compatibility field. |
 | `rag_readiness_status` | Recommended | Evidence assembly layer | Example values: `ready`, `missing_comments`, `missing_signals`, `needs_review`. | Does not validate the event; only checks readiness. |
 
-## Relationship To Future RAG Artifacts
+## Evidence inventory versus RAG context
 
-The RAG phase should consume the evidence package and produce separate
-artifacts. The contract should not mix these downstream artifacts into
-detection outputs.
+The evidence inventory is complete under the stage's declared evidence rule. RAG
+context may be a selected subset under a token budget. Selection must retain
+`comment_id`, `video_id`, and `context_unit_id` references and must never rewrite the
+complete evidence inventory.
 
-| Future artifact | Input dependency | Responsibility |
+Retrospective consumer semantics distinguish comments available at or before the
+trigger from post-trigger validation context when such context is present. The daily
+path makes the distinction explicit:
+
+```text
+alert evidence
+= comments new in the triggering cycle
+
+validation context
+= comments active in the analysis window
+```
+
+Both daily sets satisfy `event_time_utc < data_cutoff_utc`. Alert evidence is a
+subset of validation context. Context units, chunking, token estimates, selection,
+and capacity reports belong to RAG preparation, not to the candidate.
+
+## Relationship to validation artifacts
+
+RAG consumes evidence packages/sidecars and produces separate downstream artifacts.
+These outputs never become detector fields.
+
+| Validation artifact | Input dependency | Responsibility |
 |---|---|---|
 | `rag_queries` | `event_evidence_package`, event videos, titles, time window | Define external retrieval queries. |
 | `external_evidence` | `rag_queries` | Store retrieved sources with URLs, snippets, dates, and retrieval metadata. |
 | `validation_results` | `event_evidence_package`, `external_evidence` | Store validation label, rationale, evidence IDs, limitations, and validator metadata. |
 | `public_validation_report` | `validation_results`, anonymized/minimized evidence | Communicate results without exposing unnecessary raw text or author IDs. |
 
-## Compatibility Strategy
+## Compatibility strategy
 
-RAG-1 does not require changing existing files. Future implementation should
-add new artifacts instead of mutating current outputs.
+Current evidence stages preserve existing trigger and PoC files and add their own
+artifacts instead of mutating upstream outputs.
 
 | Current artifact | Compatibility stance |
 |---|---|
 | `snapshots.csv` | Preserve current shape. Use it as a source for `event_signal_snapshot_map`. |
-| `trigger_log.txt` | Preserve as human-readable evidence. Future event artifacts may be derived from detector trace or reporting logic. |
-| `trigger_comment_map.csv` | Preserve current exploratory files. Future `event_comment_map` can extend the schema in a new artifact. |
-| `queries_df.csv` | Preserve PoC reference. Future `rag_queries` should add IDs and provenance. |
-| `noticias_df.csv` | Preserve PoC reference. Future external evidence should add IDs and retrieval metadata. |
-| `auditoria_df.csv` | Preserve PoC reference. Future validation results should add controlled labels. |
+| `trigger_log.txt` | Preserve as human-readable historical evidence. |
+| `trigger_comment_map.csv` | Preserve as the compatibility bridge into retrospective evidence. |
+| `queries_df.csv` | Preserve the PoC reference separately from current query artifacts. |
+| `noticias_df.csv` | Preserve the PoC reference separately from current external-evidence artifacts. |
+| `auditoria_df.csv` | Preserve the PoC reference separately from current controlled validation results. |
 
-## Decisions For Future Stages
+## Deferred refinements
 
-The first non-invasive builder implements the approved baseline decisions. The
-following choices remain open before deeper RAG integration:
+Current retrospective and daily paths implement the approved reference contracts.
+The following choices remain deferred:
 
-1. Whether the builder becomes a subcommand of `run_pipeline.py` or remains an
-   external helper script.
-2. Whether future public reports should generate separate anonymized evidence
+1. Whether neutral `EventCandidate` becomes the common runtime handoff through
+   compatibility adapters.
+2. Whether public reports should generate separate anonymized evidence
    artifacts instead of reusing internal `event_comment_map.csv`.
 3. Whether retrieval queries are manual, template-based, or model-assisted.
 4. Whether snapshot linkage should stay configurable (`window`, `anchor`,
    `none`) or be fixed for thesis experiments.
-5. Whether future validation results should be stored beside each experiment or
+5. Whether validation results should be stored beside each experiment or
    in a shared `reports/` or `rag_validation/` area.
 
-## Acceptance Criteria For RAG-1
+## Current contract status
 
-RAG-1 is complete when:
+The reference contract is implemented for retrospective evidence, retrospective
+sidecars/consumer, and the daily sidecar/consumer/selection chain. G-1, G-2, and
+hierarchical G-2 consume downstream validation inputs without changing detection.
 
-- the event evidence package is defined as the RAG unit of analysis;
-- proposed artifacts and join keys are documented;
-- required, recommended, optional, and internal fields are distinguished;
-- compatibility with current outputs is preserved;
-- critical implementation decisions are listed and not silently assumed;
-- no existing detection, monitoring, or playback behavior has been changed.
+The remaining architectural gap is explicit: neutral `EventCandidate` is not yet
+the common persisted handoff, and `quality` is not uniformly propagated into the
+historical RAG schemas. This is documented debt, not permission to change current
+IDs, sidecars, prompts, or evidence rules during detector integration.

@@ -1,5 +1,10 @@
 # RAG-0 Artifact And Traceability Audit
 
+**Status:** AUDIT_REPORT / HISTORICAL
+**Snapshot:** RAG-0, before the current retrospective and daily RAG contracts were
+implemented. Findings remain historical evidence, not the current architecture.
+**Current contract:** [rag_event_evidence_contract.md](rag_event_evidence_contract.md).
+
 This document records the first audit stage for future RAG validation. It is
 descriptive only. It does not implement RAG, change detector behavior, change
 formats, change thresholds, or promote exploratory artifacts to required
@@ -178,4 +183,3 @@ RAG-0 is complete if the next stage can start from this documented evidence:
 - all-comments coverage in existing maps has been checked;
 - missing contracts and traceability fields are listed;
 - no functional pipeline behavior has been changed.
-

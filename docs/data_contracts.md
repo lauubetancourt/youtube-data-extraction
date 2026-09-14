@@ -1,194 +1,222 @@
-# Data Contracts And Traceability
+# Data contracts and temporal invariants
 
-This document records the current data contracts for the YouTube event
-detection prototype. It is a compatibility contract: it documents fields,
-formats, lineage, and expected consumers without changing algorithms,
-thresholds, metrics, or detector decisions.
+**Status:** CURRENT CONTRACT
+**Authority:** persisted data layers, canonical fields, identifiers, temporal
+causality, deduplication, and prepared-dataset requirements.
+**Architecture context:** [pipeline architecture](pipeline_architecture.md).
 
-## Contract Principles
+## Contract principles
 
-- Preserve current inputs and outputs unless a change is required for
-  traceability, reproducibility, or methodological clarity.
-- Treat `event_time_utc` and `published_at_utc` as UTC event-time fields.
-- Use Unix epoch seconds for numeric time fields.
-- Prefer canonical `*_unix_s` fields in new artifacts.
-- Accept legacy `*_unix_ms` fields while existing datasets are still present.
-- Do not rewrite historical datasets during architectural refactors unless a
-  migration is approved.
+- Preserve source identifiers and raw values needed for lineage.
+- Normalize operational timestamps to timezone-aware UTC.
+- Use Unix epoch seconds in canonical numeric timestamp fields.
+- Keep legacy `*_unix_ms` aliases readable while retained artifacts require them;
+  observed legacy values in this project contain seconds despite the suffix.
+- Make deduplication and causal cutoffs explicit.
+- Treat data paths as execution configuration, not domain constants.
+- Do not rewrite historical datasets during architectural refactors without an
+  approved migration.
 
-## Temporal Contract
+## Source, normalized, and derived fields
 
-| Entity | Canonical UTC field | Canonical numeric field | Legacy field | Unit | Timezone |
-|---|---|---|---|---|---|
-| Comment | `event_time_utc` | `event_time_unix_s` | `event_time_unix_ms` | seconds | UTC |
-| Video | `published_at_utc` | `published_at_unix_s` | `published_at_unix_ms` | seconds | UTC |
+The same row can carry values from different semantic categories:
 
-`*_unix_ms` is a deprecated name in this project. Existing observed values
-behave as Unix epoch seconds, not milliseconds. New code should write and
-prefer `*_unix_s`; readers that need to support previous artifacts should
-fallback to `*_unix_ms`.
-
-## Data Layers
-
-| Layer | Location | Format | Producer | Main Consumer | Contract Status |
-|---|---|---|---|---|---|
-| Legacy extraction exports | `data/videos_preliminares.csv`, `data/comments.csv` | CSV | Extraction phase | Storage and exploratory notebooks | Compatibility input |
-| Bronze videos | `data/bronze/videos/videos_*.jsonl` | JSONL | `persist_batch_snapshot` | Audits and reproducibility checks | Versioned batch output |
-| Bronze comments | `data/bronze/comments/comments_*.jsonl` | JSONL | `persist_batch_snapshot` | Stream audits and silver preparation | Versioned batch output |
-| Silver videos | `data/silver/videos/` | Partitioned Parquet | `persist_batch_snapshot` | Downstream preparation | Prepared source metadata |
-| Silver comments | `data/silver/comments/` | Partitioned Parquet | `persist_batch_snapshot` | Cleaning phase | Prepared comment input |
-| Gold comments | `data/gold/clean_comments.parquet` | Parquet | Cleaning phase | Playback, monitoring, detection, audits | Runtime analytical dataset |
-| Snapshots | `data/gold/snapshots*.csv` | CSV | Playback and monitoring | Experiment inspection | Stable experiment output |
-| Experiment outputs | `experiments/` | CSV/Markdown/JSON-like reports | Scripts and manual experiments | Audit, thesis evidence, future RAG | Exploratory evidence |
-
-## Comment Entity
-
-| Field | Required | Description | Notes |
-|---|---|---|---|
-| `comment_id` | Recommended | YouTube comment identifier. | Primary traceability key when available. |
-| `video_id` | Required | YouTube video identifier. | Join key to video metadata. |
-| `author_id` | Recommended | Comment author/channel identifier. | Sensitive in public reports; consider anonymization. |
-| `text` | Required | Raw comment text as extracted. | Preserve for audit and future RAG evidence. |
-| `published_at_raw` | Recommended | Original timestamp string from source column. | Supports source-level audit. |
-| `event_time_utc` | Required | Parsed comment timestamp in UTC. | Runtime event-time field. |
-| `event_time_unix_s` | Required for new artifacts | Unix epoch seconds. | Canonical numeric time field. |
-| `event_time_unix_ms` | Legacy-compatible | Deprecated alias currently containing seconds. | Keep only for compatibility. |
-| `event_date`, `event_year`, `event_month`, `event_day` | Required in partitioned datasets | Derived calendar fields in UTC. | Used for partitioning and audit. |
-| `text_clean` or equivalent cleaned text | Required in gold | Text after cleaning rules. | Exact name depends on cleaning output. |
-
-## Video Entity
-
-| Field | Required | Description | Notes |
-|---|---|---|---|
-| `video_id` | Required | YouTube video identifier. | Join key to comments. |
-| `published_at_raw` | Recommended | Original video timestamp string. | Supports source-level audit. |
-| `published_at_utc` | Required | Parsed video publication time in UTC. | Canonical time field. |
-| `published_at_unix_s` | Required for new artifacts | Unix epoch seconds. | Canonical numeric time field. |
-| `published_at_unix_ms` | Legacy-compatible | Deprecated alias currently containing seconds. | Keep only for compatibility. |
-| `published_date` | Recommended | UTC date string. | Useful for reporting. |
-
-## Snapshot Contract
-
-Snapshots are flat CSV records produced by playback and monitoring. The current
-format should be preserved during architectural refactors.
-
-| Field Family | Meaning | Consumer |
+| Category | Meaning | Examples |
 |---|---|---|
-| `event_time_utc` or equivalent window timestamp | Window time reference in UTC. | Audit, plotting, experiment comparison. |
-| `activity.*` | Activity counts and activity-derived summary fields. | Monitoring and event interpretation. |
-| `polarization.*` | Current polarization-related summary fields. | Detection context and future methodological refinement. |
-| Other flattened monitoring fields | Window-level metadata. | Reports and exploratory analysis. |
+| SOURCE | Returned directly by YouTube or the configured local equivalent | `comment_id`, `video_id`, comment text, source publication timestamp, `author_id`, likes |
+| NORMALIZED | Source value represented in the canonical runtime contract | `event_time_utc`, `published_at_utc`, normalized IDs and data types |
+| DERIVED | Value computed without a temporal series | `is_reply`, cleaned text, spam flags, calendar partitions |
+| TEMPORAL_DERIVED | Value that depends on a window, cutoff, cadence, cycle, or prior state | new/active comment counts, deltas, signal observations, detector scores |
 
-Do not rename snapshot columns during Etapa 3. If a future stage requires a
-schema change, keep a compatibility export or migration note.
+Acquisition owns source observations. Storage and cleaning own their canonical
+representation. Signal and detector outputs are derived analytical records; they
+must not be presented as source facts.
 
-## Detection Evidence Contract
+## Canonical time
 
-The detector currently emits decisions through runtime hooks and experiment
-logs. A formal RAG-ready event artifact is documented for future implementation
-but is not generated by the pipeline yet. For now, any future event record
-should remain traceable to:
+| Entity | Canonical UTC field | Canonical numeric field | Legacy alias | Unit |
+|---|---|---|---|---|
+| Comment | `event_time_utc` | `event_time_unix_s` | `event_time_unix_ms` | seconds |
+| Video | `published_at_utc` | `published_at_unix_s` | `published_at_unix_ms` | seconds |
 
-- detector name and detector parameters;
-- trigger time in UTC;
-- window start and window end in UTC;
-- activity signal values used by the detector;
-- polarization fields available at the window;
-- comment identifiers or rows that fall inside the detected window;
-- source dataset and run configuration.
+`event_time_utc` is the time basis for current replay, cyclic simulation, activity
+signals, and detection. It is not ingestion time. The current prepared corpus does
+not provide distinct durable `observed_at_utc` or `ingested_at_utc` fields.
 
-`trigger_comment_map.csv` remains an exploratory RAG input candidate. It is not
-promoted to a required pipeline contract in this stage.
+Temporal invariants:
 
-## Future RAG Validation Contract
+- timestamps used by the runtime are timezone-aware;
+- UTC is canonical for comparison and persistence;
+- local-day simulation converts `America/Bogota` boundaries to UTC;
+- a stage may consume only records allowed by its explicit cutoff;
+- future observations must not leak into signal, detection, or alert evidence.
 
-The future RAG phase should consume event candidates, event-comment evidence,
-retrieval queries, external evidence, and validation results as separate
-artifacts. This keeps internal YouTube evidence distinct from external
-validation evidence.
-
-| Future Artifact | Purpose | Required Join Key | Current Reference |
-|---|---|---|---|
-| Event candidates | One row per detected event candidate. | `event_id` | Trigger dictionaries and `trigger_log.txt`. |
-| Event-comment map | All comments associated with the event evidence window. | `event_id`, `comment_id` | `trigger_comment_map.csv` examples. |
-| RAG queries | One or more external retrieval queries per event or video. | `event_id`, `query_id` | `queries_df.csv` example. |
-| External evidence | Retrieved source records from news or other accepted sources. | `event_id`, `query_id`, `evidence_id` | `noticias_df.csv` example. |
-| Validation results | Final validation label and rationale. | `event_id` | `auditoria_df.csv` example. |
-| Validation tasks | Pending posterior validation work items. | `event_id`, `validation_task_id` | `rag_validation_tasks.csv`. |
-| RAG PoC lineage | Non-functional bridge between current PoC groups and pipeline event IDs. | `event_id`, `trigger_time`, `video_id` | `rag_poc_lineage.csv`. |
-
-See `docs/rag_validation_readiness.md` for field-level requirements,
-validation labels, retrieval questions, risks, and implementation decisions.
-See `docs/rag_event_evidence_contract.md` for the proposed RAG-1 split between
-run manifests, event candidates, signal maps, comment maps, and evidence
-packages.
-
-The first non-invasive builder for the event/evidence artifacts is
-`scripts/build_rag_event_evidence.py`. It writes new files into a separate
-output directory and does not modify existing pipeline artifacts. It can be
-driven through CLI arguments or a JSON config file, and writes a
-`rag_evidence_summary.json` file for run-level traceability.
-
-The first non-invasive validation preparation helper is
-`scripts/prepare_rag_validation.py`. It consumes `event_evidence_packages.jsonl`
-and writes validation tasks, retrieval questions, query placeholders, an empty
-external-evidence table, pending validation rows, and a
-`rag_validation_summary.json` file. It does not retrieve external sources or
-generate validation labels.
-
-The RAG artifact verifier is `scripts/verify_rag_artifacts.py`. It reads the
-evidence and validation-preparation directories, checks required files and
-columns, verifies event ID alignment, compares summary counts to artifact
-contents, checks that comments fall inside event windows, and confirms that
-`event_time_unix_s` matches `event_time_utc`. It writes an optional JSON report
-and does not modify artifacts.
-
-The executable integration of the current RAG proof of concept is
-`scripts/run_rag_poc_validation.py`. Its functional inputs and outputs preserve
-the notebook contract:
-
-- input: `trigger_comment_map.csv` with `trigger_time`, `window_start`,
-  `window_end`, `trigger_volume`, `trigger_strength`, `order_in_trigger`,
-  `event_time_utc`, `video_id`, `title`, `channel_title`, `author_id`,
-  `comment_id`, and `text`;
-- outputs: `queries_df.csv`, `noticias_df.csv`, `auditoria_df.csv`,
-  `vectorstore_comentarios/`, and `vectorstore_noticias/`.
-
-`event_id` is not added to those PoC outputs. When an RAG evidence
-`event_comment_map.csv` is provided, the integration writes `rag_poc_lineage.csv`
-as an auxiliary bridge from `trigger_time + video_id` groups to pipeline
-`event_id` values.
-
-## Lineage Expectations
-
-Every analytical artifact should be explainable with this chain:
+Current cyclic rules are:
 
 ```text
-YouTube source metadata
-  -> extraction run
-  -> bronze JSONL
-  -> silver Parquet
-  -> gold clean comments
-  -> playback stream
-  -> monitoring snapshot
-  -> detector evidence or experiment report
-  -> future RAG validation input
+event_time_utc < data_cutoff_utc
+collection_window_start_utc <= event_time_utc < collection_window_end_utc
+analysis_window_start_utc <= event_time_utc < analysis_window_end_utc
 ```
 
-Minimum lineage metadata for future reports:
+Signal-specific interval policies are defined in
+[activity signal semantics](activity_signal_semantics.md).
 
-- source path or dataset version;
-- extraction or processing timestamp when available;
-- temporal field used and its unit;
-- relevant CLI/config parameters;
-- detector name;
-- output artifact path;
-- known compatibility notes.
+## Persisted data layers
 
-## Compatibility Rules
+These are local pipeline layers, not an instruction to version their contents in
+Git.
 
-- New artifacts should include `event_time_unix_s` or `published_at_unix_s`.
-- Readers should prefer `*_unix_s` and fallback to `*_unix_ms`.
-- Existing `data/` artifacts are not migrated automatically.
-- Public reports that include text should apply anonymization or text
-  minimization before publication.
+| Layer | Current location/shape | Producer | Role |
+|---|---|---|---|
+| Legacy local input | `data/videos_preliminares.csv`, `data/comments.csv` | Earlier extraction/export flow | Compatibility source |
+| Bronze videos/comments | JSONL under `data/bronze/` | `persist_batch_snapshot` | Source-oriented batch record |
+| Silver videos/comments | Partitioned Parquet under `data/silver/` | `persist_batch_snapshot` | Normalized prepared input to cleaning |
+| Prepared comments (“Gold” compatibility layout) | Commonly `data/gold/clean_comments.parquet` | Cleaning | Current analytical dataset for replay/simulation |
+| Monitoring snapshots | CSV/Parquet selected by execution | Playback/monitoring | Window-level analytical output |
+| Experiment/RAG artifacts | Under configured output roots, often `experiments/` | Detection, evidence, and RAG stages | Development/reference evidence |
+
+`DataConfig` can select `youtube_api`, `local_files`, or `prepared_dataset`.
+Therefore `data/gold/clean_comments.parquet` is a compatibility profile value, not
+the universal prepared-dataset path.
+
+Dataset storage, distribution, fingerprinting, backup, and recovery policy remain
+outside this contract and belong to STAB-DATA-01.
+
+## Comment contract
+
+| Field | Role | Requirement |
+|---|---|---|
+| `comment_id` | Stable source/traceability key | Required by cyclic and evidence inventories |
+| `video_id` | Join key to video metadata | Required by cyclic and RAG evidence paths |
+| `author_id` | Author/channel reference | Optional at source; missingness affects unique-author signal quality |
+| `text` | Raw comment text | Required by current XIAO compatibility path and RAG evidence |
+| `reply_to_comment_id` | Parent reference | Optional; supports thread reconstruction |
+| `event_time_utc` | Canonical event time | Required by prepared replay and temporal stages |
+| `event_time_unix_s` | Canonical numeric event time | Required for new persisted artifacts when numeric time is needed |
+| `text_clean` | Cleaned representation | Produced by cleaning when that stage is used |
+
+Public outputs containing text or author references require a separate
+minimization/anonymization decision. Internal traceability does not by itself
+authorize publication of raw comments.
+
+## Video contract
+
+| Field | Role | Requirement |
+|---|---|---|
+| `video_id` | Stable join key | Required for comment/video evidence association |
+| `published_at_utc` | Canonical publication time | Required in normalized video records |
+| `published_at_unix_s` | Canonical numeric time | Used in new numeric artifacts |
+| `title`, `channel_id`, `channel_title` | Source context | Optional by downstream contract |
+| Platform counters | Mutable source observations | A single value is not a temporal rate |
+
+View, like, or platform comment-count velocity requires repeated snapshots with an
+explicit observation time. The current contract does not infer a temporal signal
+from a single mutable counter.
+
+## Deduplication and ordering
+
+- `comment_id` is the primary identity for cyclic deduplication and evidence maps.
+- A duplicated comment may appear in source material, but it is counted as newly
+  observed only once in cyclic simulation.
+- Cleaning may remove temporal text duplicates under its configured rules; it does
+  not redefine the source `comment_id` contract.
+- Replay and event-window signal producers require deterministic event-time order.
+- Equal timestamps follow the signal-specific ordering protected by regression
+  tests; they are not silently reordered by documentation convention.
+
+## Prepared dataset contract
+
+A prepared comment dataset used by current replay/cyclic paths must provide, at
+minimum:
+
+```text
+comment_id
+video_id
+event_time_utc
+```
+
+Additional consumers may require `text`, `author_id`, reply fields, or video
+metadata. Configuration selects the dataset and maps component column names where
+supported. Changing the dataset must not require editing domain modules.
+
+The dataset does not select detector parameters automatically. Dataset reference,
+signal definition, detector, and parameters are independent parts of execution
+traceability.
+
+## Analytical contracts above the dataset
+
+The following contracts are implemented but are not persisted data-layer fields:
+
+- `ActivitySignalDefinition`: semantic identity of an activity signal;
+- `ActivityObservation`: causal signal value, support, and quality;
+- `DetectionResult`: detector decision and method-specific evidence;
+- `EventCandidate`: neutral promotion with minimal lineage and evidence interval.
+
+The general runtime does not yet use `EventCandidate` as the common handoff to all
+evidence paths. Historical retrospective and daily event records remain active
+compatibility contracts. See
+[activity signal semantics](activity_signal_semantics.md).
+
+## Current evidence and RAG artifacts
+
+Formal RAG artifacts do exist. The retrospective path currently produces, among
+others:
+
+- `event_candidates.csv`;
+- `event_comment_map.csv` and/or complete event comment inventories;
+- `event_video_map.csv`;
+- `event_evidence_packages.jsonl`;
+- context units and context-unit/comment maps;
+- validation inputs and selected context payloads.
+
+The daily path preserves `daily_event_id` and introduces a separate
+`daily_rag_event_id` for the evidence-stage representation. It separates comments
+new in the triggering cycle (`alert evidence`) from comments active in the analysis
+window (`validation context`).
+
+The complete artifact and ownership rules are defined in the
+[RAG event evidence contract](rag_event_evidence_contract.md). Prompts, queries,
+external evidence, token budgets, G-1/G-2 labels, and model outputs are RAG-stage
+data, not fields of the prepared dataset or neutral candidate.
+
+## Identity and lineage
+
+Identifiers have different scopes and must not be collapsed:
+
+| Identity | Meaning |
+|---|---|
+| `comment_id`, `video_id` | Source entities |
+| global `run_id` | One configured pipeline execution |
+| `config_hash` | Canonical effective configuration |
+| `event_id` | Retrospective candidate/evidence identity under its historical formula |
+| `daily_event_id` | Daily baseline point candidate |
+| `daily_rag_event_id` | Daily evidence-stage representation |
+| context/query/validation IDs | Stage-specific transformations |
+
+Minimum execution lineage is:
+
+```text
+dataset reference
++ resolved_config
++ config_hash
++ global run_id
++ stage-specific IDs
+→ produced result
+```
+
+Stage-specific IDs remain because they identify different transformations. They do
+not replace the global execution identity, and the global identity does not replace
+them.
+
+## Compatibility rules
+
+- Prefer canonical `*_unix_s`; read retained `*_unix_ms` aliases only for
+  compatibility.
+- Preserve historical event and stage-ID formulas while current artifacts depend
+  on them.
+- Preserve current RAG schemas through explicit adapters before changing them.
+- Do not copy `RunConfig`, full datasets, prompts, or context payloads into the
+  neutral candidate.
+- Do not infer true-online guarantees from retrospective or cyclic event-time
+  simulation.

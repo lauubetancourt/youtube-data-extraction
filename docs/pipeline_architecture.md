@@ -1,129 +1,356 @@
-# Pipeline Architecture
+# End-to-end pipeline architecture
 
-This document records the current architecture of the YouTube event detection
-prototype. It is descriptive only: it does not change algorithms, thresholds,
-data formats, or execution behavior.
+**Status:** CURRENT ARCHITECTURE
+**Authority:** end-to-end layers, responsibilities, implemented connections, and
+compatibility boundaries.
+**Specialized contracts:** [data](data_contracts.md),
+[activity and detection](activity_signal_semantics.md),
+[event evidence and RAG preparation](rag_event_evidence_contract.md), and
+[configuration](../configs/README.md).
 
-## Purpose
+## Purpose and limits
 
-The pipeline supports a CRISP-DM workflow for online event detection with
-YouTube comments. Its current role is to produce event candidates from activity
-signals and lightweight discourse signals, while preserving enough context for
-future validation.
+The prototype turns YouTube observations into statistically detected event
+candidates and traceable evidence for posterior validation. It supports
+retrospective and daily online-like execution. It does not yet provide durable
+true-online ingestion.
 
-## Phase Boundaries
+A trigger means that one configured detector found a relevant change in one
+configured activity signal. It does not prove that a real-world event occurred.
+G-1 and G-2 are posterior validation stages and do not belong to statistical
+detection.
 
-| Phase | Current module or artifact | Responsibility | Main input | Main output |
-|---|---|---|---|---|
-| Extraction | `youtube_pipeline/data_extraction.py` | Query YouTube, filter videos, extract comments, and write run metadata. | YouTube API, extraction config, environment API key. | Dataframes, legacy CSV files, bronze/silver artifacts. |
-| Storage | `youtube_pipeline/storage.py` | Normalize timestamps and persist batch snapshots in bronze/silver layout. | Video and comment dataframes. | JSONL bronze files, partitioned Parquet silver datasets. |
-| Preprocessing | `youtube_pipeline/cleaning.py` | Normalize comment text, preserve emotional cues, filter high-noise records, and keep canonical temporal fields. | Silver comments or legacy comments CSV. | `data/gold/clean_comments.parquet`. |
-| Stream simulation | `youtube_pipeline/replay.py` | Replay historical comments in event-time order with configurable playback speed. | Gold comments dataset. | Events emitted into a Streamz stream. |
-| Signal monitoring | `youtube_pipeline/monitoring.py` | Build event-time window snapshots with activity and discourse-signal summaries. | Replayed events. | Snapshot records, usually flattened to CSV. |
-| Event detection | `youtube_pipeline/detectors.py` and `youtube_pipeline/run_pipeline.py` | Create a detector through a common contract and apply it during playback. | Replayed events and detector parameters. | Trigger logs in experiments; snapshots from pipeline playback. |
-| Experiment reporting | `scripts/` and `experiments/` | Inspect datasets, reconstruct trigger evidence, and summarize runs. | Gold datasets, snapshots, trigger outputs. | Audit reports, summaries, trigger maps. |
-| RAG evidence preparation | `youtube_pipeline/rag_evidence.py` and `scripts/build_rag_event_evidence.py` | Assemble non-invasive event candidates, all-comment maps, signal maps, evidence packages, and execution summaries. | Gold comments, exploratory trigger-comment maps, optional snapshots, optional JSON config. | RAG evidence artifacts in a separate output directory. |
-| RAG validation preparation | `youtube_pipeline/rag_validation.py` and `scripts/prepare_rag_validation.py` | Prepare posterior validation tasks, retrieval questions, query placeholders, empty external-evidence schema, and pending validation rows. | RAG evidence packages. | Contract-only validation preparation artifacts in a separate output directory. |
-| RAG PoC validation | `youtube_pipeline/rag_poc.py` and `scripts/run_rag_poc_validation.py` | Execute the current `triggers_validation.ipynb` proof of concept as a posterior phase while preserving its prompts, grouping, Serper behavior, Chroma stores, and output schemas. | PoC-compatible `trigger_comment_map.csv`; optional `event_comment_map.csv` only for lineage. | `queries_df.csv`, `noticias_df.csv`, `auditoria_df.csv`, Chroma stores, manifest, lineage, and summary. |
-| RAG artifact verification | `youtube_pipeline/rag_verification.py` and `scripts/verify_rag_artifacts.py` | Verify evidence and validation-preparation artifact consistency without running retrieval, generation, detection, or validation decisions. | RAG evidence and validation-preparation directories. | JSON verification report and CLI status. |
-| Future RAG refinement | `docs/rag_validation_readiness.md` and `.agents/examples/structured-rag-pdf/` | Specify how the current PoC can later be refined against broader evidence and contracts. | Validation tasks, queries, retrieved evidence, event evidence packages, PoC outputs. | Future refined validation labels and rationale. |
-| Regression verification | `docs/regression_verification.md` | Document checks that preserve existing behavior after refactors. | Current code, gold data, snapshots, audit scripts. | Reproducible verification evidence. |
-
-## Current Data Flow
+## Conceptual architecture
 
 ```text
-YouTube API or legacy CSV
-  -> extraction dataframe
-  -> bronze JSONL
-  -> silver Parquet
-  -> gold clean comments
-  -> stream playback
-  -> window snapshots
-  -> trigger logs and experiment summaries
-  -> non-invasive RAG evidence artifacts
-  -> contract-only RAG validation preparation artifacts
-  -> RAG PoC validation artifacts
-  -> RAG artifact verification report
-  -> future RAG refinement contract
+SOURCE / YOUTUBE
+        ↓
+ACQUISITION
+        ↓
+STORAGE / RAW DATA
+        ↓
+CLEANING + NORMALIZATION
+        ↓
+PREPARED DATASET
+        ↓
+REPLAY / CYCLIC SIMULATION
+        ↓
+ACTIVITY METRIC
+        ↓
+ACTIVITY SIGNAL
+        ↓
+ActivityObservation
+        ↓
+SIGNAL → DETECTOR ROUTING
+        ↓
+DETECTOR
+        ↓
+DetectionResult
+        ↓
+EVENT PROMOTION
+        ↓
+EventCandidate
+        ↓
+EVIDENCE ASSEMBLY
+        ↓
+RAG PREPARATION
+        ↓
+CONTEXT SELECTION
+        ↓
+G-1 / G-2 VALIDATION
 ```
 
-## Canonical Runtime Fields
+This diagram is conceptual. The maturity table below states which handoffs are
+active and which contracts exist but are not yet connected to the general runtime.
 
-The current runtime timestamp used by playback, monitoring, and detection is
-`event_time_utc`. It is parsed with `utc=True` and should be treated as the
-canonical event-time field.
+## Layer map
 
-The canonical numeric timestamp for new comment artifacts is
-`event_time_unix_s`. The canonical numeric timestamp for new video artifacts is
-`published_at_unix_s`. Both use Unix epoch seconds in UTC.
+| Layer | Current implementation | Responsibility | Output or handoff |
+|---|---|---|---|
+| Source/acquisition | `youtube_pipeline/data_extraction.py` | Query YouTube endpoints, apply acquisition filters, and capture source records and run metadata | Video and comment dataframes |
+| Storage | `youtube_pipeline/storage.py` | Normalize source timestamps and persist local Bronze JSONL and Silver Parquet | Persisted batch snapshot |
+| Cleaning | `youtube_pipeline/cleaning.py` | Normalize text, flag/filter noise, handle orphan replies and temporal duplicates, and preserve canonical IDs/time | Prepared comments dataset |
+| Prepared input | `PreparedDatasetConfig`, `LocalFilesConfig` | Declare which local dataset an execution consumes | Typed source configuration |
+| Retrospective replay | `youtube_pipeline/replay.py`, `prepared_replay.py` | Emit historical records in event-time order | Incremental comment events |
+| Cyclic simulation | `cyclic_ingestion.py`, `cyclic_orchestration.py`, `cyclic_stateful_adapter.py` | Reveal only records available before each simulated cutoff and maintain active windows | Cycle manifests and causal inventories |
+| Activity signal | `activity_signals.py`, `cyclic_daily_signals.py` | Apply a metric over an explicit temporal definition | `ActivityObservation` or current daily signal rows |
+| Signal routing | `activity_detection.py` | Associate one `signal_id` with one configured detector and validate the handoff | Detector-specific dispatch |
+| Detection | `detectors.py`, `daily_frequency_baseline.py` | Maintain statistical state and decide whether a criterion is satisfied | `DetectionResult` for neutral detectors; daily score/event records for the baseline |
+| Candidate promotion | `event_candidates.py` | Promote a triggered neutral result into an identifiable, traceable candidate | `EventCandidate` internal contract |
+| Evidence | `rag_evidence.py`, `rag_sidecars.py`, `daily_rag_sidecars.py` | Build causal inventories and comment/video associations | Evidence packages and sidecars |
+| RAG preparation | `rag_consumer.py`, `daily_rag_consumer.py` | Build context units and non-generative validation payloads | Validation inputs and capacity reports |
+| Context selection | `daily_rag_context_selection.py` and retrospective consumer policy | Select traceable units under a budget | Selected comment/context-unit references |
+| Validation | `rag_generation_g1.py`, `rag_generation_g2.py`, `rag_generation_g2_hierarchical.py` | Evaluate internal community evidence and external evidence | G-1/G-2 labels, rationale, and citations |
 
-The legacy fields `event_time_unix_ms` and `published_at_unix_ms` may still
-appear in existing artifacts. In this project, their observed values behave as
-seconds despite the `ms` suffix. New readers should prefer the `*_unix_s`
-fields and fallback to legacy names only for compatibility.
+## Authority by layer
 
-See `docs/data_contracts.md` for the full data contract and lineage notes.
-See `docs/rag_validation_readiness.md` for the future RAG validation contract.
-See `docs/rag_artifact_audit.md` for the RAG-0 artifact and traceability audit.
-See `docs/rag_event_evidence_contract.md` for the RAG-1 event-evidence contract design.
-See `docs/rag_poc_integration.md` for the executable RAG PoC integration boundary.
-See `docs/regression_verification.md` for the latest regression evidence.
+| Layer | Authority |
+|---|---|
+| Acquisition | Observations returned by the configured source and acquisition metadata |
+| Normalization | Canonical timestamps, IDs, data types, deduplication, and prepared representation |
+| Signal producer | `value`, `support_count`, and `quality` of each observation |
+| Detector | `triggered`, optional `score`, and detector-specific `detector_metadata` |
+| Candidate promotion | Candidate identity, causal evidence interval, lifecycle when applicable, and minimal lineage references |
+| Evidence assembly | Complete comment/video inventories and causal associations |
+| RAG preparation | Context units, chunking, ordering, budgets, and selection |
+| G-1/G-2 | Validation labels, validation confidence, rationale, citations, and external evidence |
 
-## Separation Of Responsibilities
+No downstream layer silently redefines an upstream authority. In particular, a
+detector propagates observation `quality`; warmup and cooldown belong to
+`detector_metadata`, not to signal quality.
 
-- `data_extraction.py` owns API access, extraction config, and extraction run
-  metadata.
-- `storage.py` owns timestamp normalization and physical persistence layout.
-- `cleaning.py` owns text normalization, spam flags, orphan reply handling, and
-  temporal duplicate removal.
-- `replay.py` owns event-time replay.
-- `monitoring.py` owns event-time windows and signal snapshots.
-- `detectors.py` owns the detector contract, detector registry, and the default
-  `xiao_ema` implementation.
-- `stream_playback.py` remains as a compatibility facade for older imports.
-- `run_pipeline.py` is the compatibility facade for the historical CLI. It
-  translates legacy arguments through the common `RunConfig` resolvers and
-  connects the unchanged phase components.
-- `scripts/` contains exploratory audit/report helpers. These are useful for
-  analysis; scripts that read numeric timestamps should prefer `*_unix_s` and
-  fallback to `*_unix_ms`.
-- `rag_evidence.py` owns non-invasive RAG evidence assembly. It reads current
-  artifacts or a JSON build config and writes separate RAG-preparation outputs
-  without changing the detection pipeline.
-- `rag_validation.py` owns non-invasive RAG validation preparation. It consumes
-  evidence packages and writes validation tasks without retrieval, generation,
-  embeddings, vector stores, or external API calls.
-- `rag_poc.py` owns the current executable RAG proof of concept as a posterior
-  validation phase. It preserves the notebook's unit of analysis
-  `trigger_time + video_id`; `event_id` is attached only in auxiliary lineage.
-- `rag_verification.py` owns read-only consistency checks for RAG evidence and
-  validation-preparation artifacts. It does not alter artifacts or decide
-  whether an event is true.
-- `entrypoints/non_daily_rag.py` resolves the legacy and common configuration
-  shapes for evidence, sidecars, consumer, validation, G-1 and G-2. Each RAG
-  component still receives only its existing stage-specific dataclass.
+## Source, storage, and prepared data
 
-## Known Architectural Gaps
+The acquisition layer captures fields returned by YouTube or an equivalent local
+source. It does not assign event meaning. Storage maps source timestamps to
+canonical UTC fields and persists Bronze/Silver materializations. Cleaning then
+produces a prepared dataset while preserving source IDs and temporal lineage.
 
-- The README previously referenced `src/youtube_pipeline/`, but the actual
-  package lives in `youtube_pipeline/`.
-- New detector implementations must follow the common `TriggerDetector` contract
-  and should be registered in `detectors.py`.
-- Snapshot CSV outputs are stable enough for experiments, and their current
-  shape is documented in `docs/data_contracts.md`.
-- Trigger-to-comment maps exist in experiments and are promising for future RAG
-  validation. The current RAG PoC consumes this shape directly; these maps are
-  still experiment artifacts rather than required detector outputs.
-- Public reports should consider anonymization or text minimization before
-  exposing raw comments.
+The current runtime can use `youtube_api`, `local_files`, or `prepared_dataset`
+through `DataConfig`; the chosen path is external configuration. “Gold” is a
+current local prepared dataset and compatibility path, not a domain concept or a
+permanent location embedded in detection logic.
 
-## Non-Goals For This Stage
+See [data contracts](data_contracts.md) for field-level rules.
 
-- No algorithm changes.
-- No threshold changes.
-- No metric changes.
-- No column renames.
-- No file moves.
-- No changes to the RAG PoC prompts, grouping, embeddings, vector stores,
-  external retrieval behavior, or output schemas.
-- No change to pipeline execution behavior.
+## Retrospective replay and cyclic simulation
+
+Retrospective replay emits a known corpus in `event_time_utc` order. The cyclic
+simulation partitions that corpus into local-day cycles and enforces:
+
+```text
+event_time_utc < data_cutoff_utc
+analysis_window_start_utc <= event_time_utc < analysis_window_end_utc
+```
+
+The simulation is online-like: each cycle sees only data available under the
+simulated event-time cutoff. It is not true online ingestion. The source corpus
+does not contain a distinct, durable `observed_at_utc` or `ingested_at_utc`, so the
+prototype cannot yet model ingestion latency, watermarks, or late arrivals.
+
+## Activity and detection architecture
+
+### Metric and signal
+
+An activity metric is a quantitative rule over available data. Current examples
+are `comment_count` and `unique_author_count`.
+
+An activity signal is a time series identified by more than its metric:
+
+```text
+metric + source + scope + unit + window + cadence
++ time_basis + timezone + interval_policy
+```
+
+Therefore `comment_count` over 120-second windows every 30 seconds and a daily
+comment count are different signals.
+
+### Neutral contracts
+
+`ActivitySignalDefinition` records signal semantics. `ActivityObservation`
+records one causal value and makes the signal producer authoritative for:
+
+```text
+value
+support_count
+quality
+```
+
+`ActivityDetectionRouteConfig` declares `signal_id → detector_id` without copying
+signal or detector parameters. The detector receives only an observation, not
+YouTube rows, paths, or `RunConfig`.
+
+`DetectionResult` is the statistical decision for one observation:
+
+```text
+detector_id
+signal_id
+observation_time_utc
+triggered
+quality                 # propagated unchanged
+score                   # optional and method-specific
+detector_metadata       # method-specific state/evidence
+```
+
+`DetectionResult.triggered=true` does not confirm an event. `EventCandidate`
+promotes that result with a candidate ID, causal evidence interval, minimal lineage,
+and optional lifecycle. It deliberately excludes comments, videos, context units,
+prompts, and validation outputs.
+
+The contracts and promotion helper are implemented and tested. The general
+production path does not yet use `EventCandidate` as the handoff to RAG. Existing
+retrospective and daily event records remain the active compatibility contracts.
+
+See [activity signal semantics](activity_signal_semantics.md) for the normative A6
+details.
+
+## XIAO reference path
+
+XIAO EMA is both `REFERENCE_DETECTOR` and `REGRESSION_ANCHOR`; it is not the final
+detector by architectural commitment.
+
+Neutral evaluation:
+
+```text
+comment_count_event_window_120s_step_30s
+→ ActivityObservation
+→ XiaoEMATriggerDetector.on_observation()
+→ DetectionResult
+```
+
+Historical compatibility:
+
+```text
+XIAO
+→ active trigger
+→ cooldown
+→ completed_triggers
+→ trigger_comment_map
+→ retrospective evidence
+```
+
+`on_event()` still drives that historical lifecycle. The `DetectionResult` returned
+by each observation is not yet the persisted source of the historical trigger.
+Comments collected internally during cooldown contain only time and text and are
+not the definitive RAG evidence inventory. Retrospective evidence is reconstructed
+outside the detector from the approved pre-trigger window and the prepared dataset.
+
+## Daily baseline path
+
+The daily path remains specialized:
+
+```text
+new_comment_count_local_day_daily
+→ daily_frequency_baseline
+→ trigger_candidate
+→ daily_event_id
+→ daily evidence sidecars
+→ daily consumer and context selection
+```
+
+The baseline produces score rows and point candidates; it has no `OPEN/CLOSED`
+lifecycle. Its statistical fields can be mapped conceptually to `DetectionResult`,
+but that adapter is not implemented. The daily event currently combines decision,
+candidate, and some lineage fields and remains the active compatible output.
+
+## Retrospective and daily realizations
+
+| Concern | Retrospective | Daily |
+|---|---|---|
+| Detector | XIAO EMA reference | Daily frequency baseline |
+| Candidate shape | Trigger with optional cooldown/close lifecycle | Point candidate associated with one cycle |
+| Candidate identity | Historical `event_id` assigned during evidence preparation | `daily_event_id` assigned by the baseline |
+| Alert evidence | Approved pre-trigger event window | Comments new in the triggering cycle |
+| Validation context | Event evidence window/context prepared downstream | Comments active in the analysis window |
+| RAG identity | Retrospective evidence/stage IDs | `daily_rag_event_id` plus preserved `daily_event_id` |
+
+The neutral contracts allow both shapes without forcing a common lifecycle or
+changing historical identity formulas.
+
+## Evidence and RAG boundary
+
+Evidence answers: “Which source observations justify or reconstruct this
+candidate?” It includes the causal window, comment inventory, video association,
+and stable source references.
+
+RAG answers: “How will available evidence be organized and selected for
+validation?” It owns context units, chunking, ranking, token estimates, budgets,
+queries, external evidence, prompts, model outputs, labels, confidence, rationale,
+and citations.
+
+Context selection may omit material because of a budget. It must not change the
+complete evidence inventory. See the
+[event evidence contract](rag_event_evidence_contract.md).
+
+## G-1 and G-2
+
+G-1 evaluates a candidate using internal evidence from the observed YouTube
+community. G-2 evaluates external support. The hierarchical G-2 variant follows:
+
+```text
+event
+→ associated video
+→ external query/evidence
+→ video-level assessment
+→ event-level synthesis
+```
+
+Prompts, models, retrieval settings, labels, and artifact schemas remain owned by
+their RAG-stage configurations and modules. They do not enter `DetectionResult` or
+the core candidate contract.
+
+## Configuration and traceability
+
+One execution is composed by immutable `RunConfig` sections for identity, data,
+simulation, signals, detection, RAG, and artifacts. The loader rejects unknown
+keys, applies explicit overrides after profile values, resolves paths outside domain
+modules, and serializes the effective configuration canonically.
+
+Minimum reconstruction chain:
+
+```text
+dataset reference
++ resolved_config
+→ config_hash
++ global run_id
+→ result and stage artifacts
+```
+
+`RunConfig.identity.run_id` identifies the global execution. RAG evidence,
+consumer, selection, query, and validation stages retain their own IDs because each
+identifies a different transformation. The global ID provides context; it does not
+replace stage identities or historical formulas.
+
+Secrets remain external infrastructure and are excluded from `RunConfig`,
+`resolved_config`, `config_hash`, and methodological manifests.
+
+## Compatibility boundary
+
+`run_pipeline.py`, stage wrappers, legacy loaders, historical event IDs, and RAG
+artifact schemas remain when they have tested consumers. They translate or project
+the current architecture; they must not introduce new methodological defaults.
+
+Historical paths such as `data/gold` and `experiments/xiao/media/log_3` appear in
+compatibility profiles and entrypoint shims. Domain modules receive resolved paths
+and do not treat those locations as scientific authorities.
+
+## Maturity status
+
+| Component | Status | Current meaning |
+|---|---|---|
+| Acquisition | IMPLEMENTED_AND_ACTIVE | YouTube API and configured local inputs |
+| Storage and timestamp normalization | IMPLEMENTED_AND_ACTIVE | Bronze/Silver persistence and canonical UTC fields |
+| Cleaning | IMPLEMENTED_AND_ACTIVE | Prepared comments contract |
+| Prepared dataset selection | IMPLEMENTED_AND_ACTIVE | Configurable local prepared source |
+| Retrospective replay | IMPLEMENTED_AND_ACTIVE | Event-time replay of prepared data |
+| Cyclic simulation | IMPLEMENTED_AND_ACTIVE | Deterministic daily online-like cutoffs |
+| Comment-count signal | IMPLEMENTED_AND_ACTIVE | XIAO reference input |
+| Unique-author signal | IMPLEMENTED_NOT_YET_CONNECTED | Implemented/tested experimental signal; not a default profile |
+| `ActivityObservation` | IMPLEMENTED_AND_ACTIVE | Consumed by XIAO's neutral method |
+| Signal→detector routing | IMPLEMENTED_NOT_YET_CONNECTED | Configurable and tested; not the general cyclic runtime dispatch |
+| XIAO EMA | REFERENCE_COMPATIBILITY | Active reference detector and historical trigger lifecycle |
+| `DetectionResult` | IMPLEMENTED_NOT_YET_CONNECTED | Produced by XIAO but not persisted/promoted by the historical path |
+| `EventCandidate` | IMPLEMENTED_NOT_YET_CONNECTED | Internal contract and compatibility projection tested |
+| Daily frequency baseline | IMPLEMENTED_AND_ACTIVE | Specialized daily point-candidate path |
+| Retrospective RAG evidence/sidecars | IMPLEMENTED_AND_ACTIVE | Current reference contracts |
+| Daily RAG sidecars/consumer/selection | IMPLEMENTED_AND_ACTIVE | Non-generative daily chain |
+| G-1/G-2 and hierarchical G-2 | IMPLEMENTED_AND_ACTIVE | Local dry-run and configured external execution paths |
+| River 0.26.1 | IMPLEMENTED_NOT_YET_CONNECTED | Reproducible dependency; no pipeline adapter |
+| Page-Hinkley adapter | DEFERRED | Technical viability shown, implementation pending approval |
+| True online ingestion | DEFERRED | Requires A9 contracts and operational state |
+| Durable checkpoint/restore | DEFERRED | Current detector state is in-memory or report-oriented |
+| Late-arrival handling/watermarks | DEFERRED | Requires distinct observation/ingestion time |
+
+## Deferred to A9
+
+The following are not current capabilities:
+
+- `observed_at_utc` and `ingested_at_utc` as separate source facts;
+- watermarks and explicit late-arrival policy;
+- durable idempotency and atomic persistence;
+- restart equivalence;
+- durable checkpoints for signal and detector state;
+- real online scheduling, polling, and recovery.
+
+Their absence does not change the causal contract of retrospective or cyclic
+executions. It limits claims about real online operation.

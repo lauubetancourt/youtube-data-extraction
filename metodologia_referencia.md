@@ -1,5 +1,10 @@
 ### metodologia_referencia.md
 
+**Estado:** EXPERIMENTAL_NOTE / HISTORICAL
+**Uso:** notas metodológicas de referencia; no constituyen la especificación del
+detector vigente ni sustituyen citas académicas verificadas.
+**Arquitectura actual:** [docs/pipeline_architecture.md](docs/pipeline_architecture.md).
+
 ### Xiao et al. (2025) - Detección Basada en MACD
 *   **Fórmulas Matemáticas y Lógica de Disparo:**
     *   **Media Móvil Exponencial (EMA):**
